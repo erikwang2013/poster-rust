@@ -11,7 +11,7 @@ use super::{ElementRender, RenderCtx};
 ///
 /// 文本样式（`size` / `color` / `font` / `angle` / `maxWidth` / `align` / `lineHeight`）
 /// 与驱动 [`TextOptions`] 同键同默认值，因此平铺进本结构体。
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TextElement {
     /// 文字内容；模板里也可写作 `content`（PHP 同时接受两个键，优先 `text`）。
@@ -26,16 +26,6 @@ pub struct TextElement {
     pub style: TextOptions,
 }
 
-impl Default for TextElement {
-    fn default() -> Self {
-        Self {
-            text: String::new(),
-            x: 0,
-            y: 0,
-            style: TextOptions::default(),
-        }
-    }
-}
 
 impl ElementRender for TextElement {
     fn render(&self, canvas: &mut ImageDriver, _ctx: &RenderCtx<'_>) -> Result<()> {

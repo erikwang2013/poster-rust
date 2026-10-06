@@ -172,6 +172,7 @@ pub(crate) fn generate(builder: CaptchaBuilder) -> Result<CaptchaResult> {
 ///
 /// `tabs` 为 `[上, 右, 下, 左]`，`true` = 外凸半圆、`false` = 内凹半圆。
 /// 每边中点一个半径 `k` 的半圆；`k = 短边/5 < 边长/2`，轮廓闭合且不自交。
+#[allow(clippy::type_complexity)] // 四条边的 (起点, 中点, 方向, 法线) 元组表
 fn jigsaw_points(w: f32, h: f32, k: f32, tabs: [bool; 4]) -> Vec<(f32, f32)> {
     // [起点, 边中点, 沿边方向, 外法线]，顺时针绕行（图像坐标 y 向下）
     let sides: [((f32, f32), (f32, f32), (f32, f32), (f32, f32)); 4] = [

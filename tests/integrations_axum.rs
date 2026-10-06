@@ -51,7 +51,7 @@ async fn generate_serve_and_verify_roundtrip() {
     assert_eq!(resp.status(), StatusCode::OK);
     let json = body_json(resp).await;
     let key = json["key"].as_str().expect("生成结果应有 key").to_string();
-    assert_eq!(json["captcha_type"], "slider");
+    assert_eq!(json["type"], "slider", "载荷类型键与 PHP 对齐为 type");
     assert!(json["image"].as_str().unwrap().starts_with("data:image/png;base64,"));
 
     // 2. 出图：GET /captcha/{key} → PNG + no-store

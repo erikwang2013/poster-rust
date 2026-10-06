@@ -10,7 +10,7 @@ use super::{ElementRender, RenderCtx};
 /// 直线。
 ///
 /// 终点缺省回落到 `x` / `y`（PHP 的 `x2 ?? x ?? 100`、`y2 ?? y ?? 0`）。
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct LineElement {
     pub x1: i32,
@@ -28,19 +28,6 @@ pub struct LineElement {
     pub style: LineOptions,
 }
 
-impl Default for LineElement {
-    fn default() -> Self {
-        Self {
-            x1: 0,
-            y1: 0,
-            x2: None,
-            y2: None,
-            x: None,
-            y: None,
-            style: LineOptions::default(),
-        }
-    }
-}
 
 impl ElementRender for LineElement {
     fn render(&self, canvas: &mut ImageDriver, _ctx: &RenderCtx<'_>) -> Result<()> {

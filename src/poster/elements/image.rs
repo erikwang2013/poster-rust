@@ -10,7 +10,7 @@ use super::{ElementRender, RenderCtx, load_image, positive};
 /// 叠加一张图片。
 ///
 /// 缺图（`src` 不存在）时按 `config.poster.placeholder` 画占位图，未配置则跳过。
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ImageElement {
     /// 图片路径。
@@ -24,16 +24,6 @@ pub struct ImageElement {
     pub style: OverlayOptions,
 }
 
-impl Default for ImageElement {
-    fn default() -> Self {
-        Self {
-            src: String::new(),
-            x: 0,
-            y: 0,
-            style: OverlayOptions::default(),
-        }
-    }
-}
 
 impl ElementRender for ImageElement {
     fn render(&self, canvas: &mut ImageDriver, ctx: &RenderCtx<'_>) -> Result<()> {

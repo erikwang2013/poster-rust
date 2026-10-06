@@ -134,6 +134,7 @@ impl Font {
     }
 
     /// 画一行文本；`(x, baseline_y)` 是基线锚点，`angle` 为逆时针度数（0 = 不旋转）。
+    #[allow(clippy::too_many_arguments)] // 一行文本的完整定位/样式参数
     pub fn draw_line(
         &self,
         img: &mut RgbaImage,

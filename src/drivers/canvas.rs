@@ -264,6 +264,7 @@ impl ImageDriver {
     }
 
     /// 饼形扇区（角度：0 = 三点钟方向，顺时针增加，同 GD）。
+    #[allow(clippy::too_many_arguments)] // 坐标 + 起止角 + 选项，与 GD imagefilledarc 同形
     pub fn filled_arc(
         &mut self,
         cx: i32,
@@ -755,13 +756,13 @@ fn convolve3x3(img: &RgbaImage, kernel: &[f32; 9]) -> RgbaImage {
                     continue;
                 }
                 let p = img.get_pixel(sx as u32, sy as u32);
-                for c in 0..3 {
-                    acc[c] += p.0[c] as f32 * k;
+                for (c, slot) in acc.iter_mut().enumerate() {
+                    *slot += p.0[c] as f32 * k;
                 }
             }
             let p = out.get_pixel_mut(x, y);
-            for c in 0..3 {
-                p.0[c] = acc[c].clamp(0.0, 255.0).round() as u8;
+            for (c, value) in acc.iter().enumerate() {
+                p.0[c] = value.clamp(0.0, 255.0).round() as u8;
             }
         }
     }
