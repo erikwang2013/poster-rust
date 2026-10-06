@@ -24,6 +24,7 @@ pub mod config;
 pub mod drivers;
 pub mod error;
 pub mod mascot;
+pub mod poster;
 pub mod qrcode;
 
 pub use config::PosterConfig;
