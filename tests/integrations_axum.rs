@@ -1,5 +1,4 @@
 //! axum 集成端到端：生成 → 出图 → 校验（错误答案）→ 404。
-#![cfg(feature = "axum")]
 
 use std::sync::Arc;
 

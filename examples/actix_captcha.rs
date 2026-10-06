@@ -3,7 +3,6 @@
 //! ```bash
 //! cargo run --example actix_captcha --features actix
 //! ```
-#![cfg(feature = "actix")]
 
 use std::sync::Arc;
 

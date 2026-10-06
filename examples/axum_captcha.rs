@@ -6,7 +6,6 @@
 //! # GET http://127.0.0.1:8090/captcha/{key}             取图（PNG）
 //! # POST http://127.0.0.1:8090/captcha/verify           校验 {"key":…, "answer":…}
 //! ```
-#![cfg(feature = "axum")]
 
 use std::sync::Arc;
 

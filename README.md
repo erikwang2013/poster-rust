@@ -111,8 +111,8 @@ use poster::captcha::{Answer, CaptchaManager};
 let manager = CaptchaManager::new()?;
 
 let result = manager.create(Some("click"))?
-    .set_difficulty("hard")?              // easy(2目标) | medium(3目标) | hard(4目标)
-    .set_background("/path/to/bg.jpg")?   // 可选：自定义背景
+    .set_difficulty("hard")              // easy(2目标) | medium(3目标) | hard(4目标)
+    .set_background("/path/to/bg.jpg")   // 可选：自定义背景
     .generate()?;
 
 // result.key    → 验证唯一标识，传给前端
@@ -136,8 +136,8 @@ let pass = manager.verify(&result.key, Answer::Click(vec![
 
 ```rust
 let result = manager.create(Some("rotate"))?
-    .set_size(200)?                 // 圆形直径 60-400（默认 200）
-    .set_angle_range(45.0, 315.0)?  // 自定义旋转角度范围
+    .set_size(200)                 // 圆形直径 60-400（默认 200）
+    .set_angle_range(45.0, 315.0)  // 自定义旋转角度范围
     .generate()?;
 
 // 前端只展示旋转后的图片（不含角度答案）
@@ -163,7 +163,7 @@ let pass = manager.verify(&result.key, Answer::Slider(173.0))?;  // 用户滑动
 | `jigsaw` | 凹凸拼图：四边各自随机半圆凸/凹（16 种组合），缺口与拼图块共用同一轮廓 |
 
 ```rust
-let result = manager.create(Some("slider"))?.set_shape("jigsaw")?.generate()?;
+let result = manager.create(Some("slider"))?.set_shape("jigsaw").generate()?;
 // 拼图块 PNG 是外扩后的外接矩形；服务端答案 x 是 PNG 左上角；
 // ±4px 容差与轨迹校验均与 square 完全一致。
 ```

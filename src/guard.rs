@@ -24,9 +24,15 @@ pub struct CaptchaImage {
 }
 
 /// 请求守卫。
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Guard {
     manager: Arc<CaptchaManager>,
+}
+
+impl std::fmt::Debug for Guard {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Guard").finish_non_exhaustive()
+    }
 }
 
 impl Guard {

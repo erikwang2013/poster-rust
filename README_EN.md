@@ -108,8 +108,8 @@ let manager = CaptchaManager::new()?;
 
 // Click captcha
 let result = manager.create(Some("click"))?
-    .set_difficulty("hard")?               // easy(2 targets) | medium(3) | hard(4)
-    .set_background("/path/to/bg.jpg")?    // optional custom background
+    .set_difficulty("hard")               // easy(2 targets) | medium(3) | hard(4)
+    .set_background("/path/to/bg.jpg")    // optional custom background
     .generate()?;
 // result.key    → opaque key, hand it to the frontend
 // result.image  → data:image/png;base64,… image
@@ -119,11 +119,11 @@ let pass = manager.verify(&result.key, Answer::Click(vec![
 ]))?;   // 18px tolerance radius
 
 // Rotate captcha
-let result = manager.create(Some("rotate"))?.set_size(200)?.generate()?;
+let result = manager.create(Some("rotate"))?.set_size(200).generate()?;
 let pass = manager.verify(&result.key, Answer::Rotate(185.0))?;   // ±5°
 
 // Slider captcha
-let result = manager.create(Some("slider"))?.set_shape("jigsaw")?.generate()?;
+let result = manager.create(Some("slider"))?.set_shape("jigsaw").generate()?;
 // result.extra → { "puzzle": "data:image/png;base64,…", "puzzle_w": 50, "puzzle_h": 50 }
 let pass = manager.verify(&result.key, Answer::Slider(173.0))?;   // ±4px
 
