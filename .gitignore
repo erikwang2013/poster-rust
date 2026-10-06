@@ -1,0 +1,29 @@
+# Ruflo local secrets and runtime data
+.env
+.env.local
+.env.*.local
+.claude-flow/data/
+.claude-flow/logs/
+.claude-flow/sessions/
+
+# Codex local configuration
+.codex/
+# Claude Flow runtime data
+# Environment variables
+
+# Rust
+/target
+*.tmp.*
+
+# 与 PHP 版对齐的忽略项（ruflo 脚手架）
+.swarm/
+.mcp.json
+ruvector.db
+vendor/
+.env
+*.log
+.phpunit.result.cache
+
+# 示例 / 测试产出的图片
+/examples/output/
+/tmp/

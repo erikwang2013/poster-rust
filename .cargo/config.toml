@@ -1,0 +1,7 @@
+# 本机多会话并发构建时，HTTP/2 多路复用会偶发卡死下载（持有 registry 锁不放，
+# 阻塞其他会话）。关闭多路复用后稳定。
+[http]
+multiplexing = false
+
+[net]
+retry = 5

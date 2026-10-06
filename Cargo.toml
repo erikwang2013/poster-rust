@@ -1,0 +1,58 @@
+[package]
+name = "poster-rust"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Rust captcha (click/rotate/slider) and poster generation — framework-agnostic core with axum and actix-web integrations."
+license = "MIT"
+authors = ["erik <erik@erik.xyz>"]
+repository = "https://github.com/erikwang2013/poster-rust"
+homepage = "https://erik.xyz"
+readme = "README.md"
+keywords = ["captcha", "poster", "image", "qr-code", "axum"]
+categories = ["multimedia::images", "web-programming"]
+exclude = ["docs/i18n", ".claude", ".claude-flow", ".swarm", "ruvector.db"]
+
+[lib]
+name = "poster"
+path = "src/lib.rs"
+
+[features]
+default = []
+axum = ["dep:axum"]
+actix = ["dep:actix-web"]
+rocket = ["dep:rocket"]
+poem = ["dep:poem"]
+salvo = ["dep:salvo"]
+warp = ["dep:warp"]
+bee = ["dep:bee_router", "axum"]
+ecat = ["axum"]
+redis = ["dep:redis"]
+
+[dependencies]
+image = "0.25"
+imageproc = "0.25"
+ab_glyph = "0.2"
+qrcode = { version = "0.14", features = ["image"] }
+rand = "0.9"
+base64 = "0.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+redis = { version = "0.27", optional = true, default-features = false }
+axum = { version = "0.8.9", optional = true, default-features = false }
+actix-web = { version = "4.15", optional = true, default-features = false }
+rocket = { version = "0.5.1", optional = true, default-features = false }
+poem = { version = "3.1.12", optional = true, default-features = false }
+salvo = { version = "1.0.1", optional = true, default-features = false }
+warp = { version = "0.4.3", optional = true, default-features = false }
+bee_router = { version = "1.2.3", optional = true, default-features = false }
+
+[dev-dependencies]
+rqrr = "0.8"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tower = { version = "0.5", features = ["util"] }
+
+[profile.release]
+lto = "thin"
