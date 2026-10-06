@@ -20,12 +20,14 @@
 //! ```
 
 pub mod assets;
+pub mod captcha;
 pub mod config;
 pub mod drivers;
 pub mod error;
 pub mod mascot;
 pub mod poster;
 pub mod qrcode;
+pub mod storage;
 
 pub use config::PosterConfig;
 pub use drivers::{Font, ImageDriver};
