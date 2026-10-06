@@ -30,10 +30,10 @@ ecat = ["axum"]
 redis = ["dep:redis"]
 
 [dependencies]
-image = "0.25"
-imageproc = "0.25"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
+imageproc = { version = "0.25", default-features = false }
 ab_glyph = "0.2"
-qrcode = { version = "0.14", features = ["image"] }
+qrcode = { version = "0.14", default-features = false, features = ["image"] }
 rand = "0.9"
 base64 = "0.22"
 serde = { version = "1", features = ["derive"] }

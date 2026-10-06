@@ -159,6 +159,7 @@ builder.background_gradient("#FF6B6B", "#FF8E53", Direction::Vertical);
 
 builder.add_text("New Arrival", TextElement {
     x: 80, y: 120,
+    // size is in points at 96dpi — same scale as PHP, templates port 1:1
     style: TextOptions { size: 48.0, color: "#333333".into(), ..Default::default() },
     ..Default::default()
 });
@@ -302,6 +303,9 @@ poster-rust is a port of [poster-php](https://github.com/erikwang2013/poster-php
 | Storage | File / Session / Redis / PSR-16 | Memory / File / Redis (Session is PHP-specific) |
 | Framework adapters | Laravel / ThinkPHP / Webman / Hyperf / Yii2 / Yii3 | Guard + axum / actix-web / rocket / poem / salvo / warp / bee-rust / e-cat |
 | Configuration | `config/poster.php` array | `PosterConfig` struct (same key names, serde-serializable) |
+| Text `size` scale | `imagettftext` points at 96dpi (≈ ×4/3 px) | Same scale (auto-calibrated per font metrics) |
+| Background image | Stretched to canvas | Cover-fit + center-crop (no distortion) |
+| QR code size | `intval`-quantized to whole modules | Exact pixel size (fractional scaling) |
 | Custom elements | Runtime class registration | 14 built-ins (enum dispatch) |
 | Docs | 14 languages | Chinese + English |
 

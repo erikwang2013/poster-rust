@@ -38,9 +38,28 @@ impl Font {
             .map_err(|e| PosterError::Font(format!("字体解析失败: {e}")))
     }
 
+    /// PHP 的 `size` 到 ab_glyph `PxScale` 的换算系数。
+    ///
+    /// 两处口径差一次校正：
+    /// 1. PHP `imagettftext($size)` 的 size 是**磅**，96 dpi 下 1 磅 = 4/3 像素；
+    /// 2. ab_glyph 的 `PxScale` 按「行高」（ascent−descent）而非 em 缩放。
+    ///
+    /// 于是同数值 `size` 在 Rust 与 PHP 的视觉大小一致（与 PHP 版对拍实测：size=48
+    /// 的「海报Ag」墨迹高均约 65px）。
+    fn gd_scale(&self) -> f32 {
+        // 字体未声明 unitsPerEm 的罕见情况按 1000 兜底（TrueType 惯例值）
+        let upem = self.inner.units_per_em().unwrap_or(1000.0);
+        (96.0 / 72.0) * (self.inner.height_unscaled() / upem)
+    }
+
+    /// 把 PHP 口径的 size 换算成 ab_glyph 的像素尺度。
+    fn px_scale(&self, size: f32) -> PxScale {
+        PxScale::from(size * self.gd_scale())
+    }
+
     /// 单行文本的推进宽度（px）。
     pub fn measure(&self, text: &str, size: f32) -> f32 {
-        let scaled = self.inner.as_scaled(PxScale::from(size));
+        let scaled = self.inner.as_scaled(self.px_scale(size));
         text.chars()
             .map(|c| scaled.h_advance(scaled.glyph_id(c)))
             .sum()
@@ -48,12 +67,12 @@ impl Font {
 
     /// 基线以上的上升高度（px，正数）。
     pub fn ascent(&self, size: f32) -> f32 {
-        self.inner.as_scaled(PxScale::from(size)).ascent()
+        self.inner.as_scaled(self.px_scale(size)).ascent()
     }
 
     /// 基线以下的下降高度（px，正数）。
     pub fn descent(&self, size: f32) -> f32 {
-        -self.inner.as_scaled(PxScale::from(size)).descent()
+        -self.inner.as_scaled(self.px_scale(size)).descent()
     }
 
     /// 自动换行；`max_width <= 0` 时仅按 `\n` 分段。
@@ -155,7 +174,7 @@ impl Font {
                 color,
                 x.round() as i32,
                 y_top.round() as i32,
-                PxScale::from(size),
+                self.px_scale(size),
                 &self.inner,
                 text,
             );
@@ -175,7 +194,7 @@ impl Font {
             color,
             anchor.round() as i32,
             (anchor - asc).round() as i32,
-            PxScale::from(size),
+            self.px_scale(size),
             &self.inner,
             text,
         );
@@ -223,6 +242,26 @@ mod tests {
 
     fn test_font() -> Font {
         Font::load(&crate::assets::default_font_path()).expect("默认字体应能加载")
+    }
+
+    #[test]
+    fn gd_size_calibration_matches_php() {
+        // 与 PHP 版对拍：imagettftext($size=48) 的「海报Ag」墨迹高 65px、y 68..132
+        // （本机 PHP 8.5 + Alibaba PuHuiTi 实测）。改字体或改换算系数时这里会先红。
+        let f = test_font();
+        let mut canvas = image::RgbaImage::from_pixel(700, 220, Rgba([255, 255, 255, 255]));
+        f.draw_line(&mut canvas, "海报Ag", 20.0, 120.0, 48.0, Rgba([0, 0, 0, 255]), 0.0);
+
+        let mut min_y = i32::MAX;
+        let mut max_y = i32::MIN;
+        for (_, y, p) in canvas.enumerate_pixels() {
+            if p.0[0] < 128 {
+                min_y = min_y.min(y as i32);
+                max_y = max_y.max(y as i32);
+            }
+        }
+        assert_eq!(max_y - min_y + 1, 65, "墨迹高应与 PHP 一致（65px）");
+        assert_eq!((min_y, max_y), (68, 132), "基线位置也应与 PHP 一致");
     }
 
     #[test]

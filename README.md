@@ -248,7 +248,7 @@ builder.add_text("新品首发", TextElement {
     x: 80,                    // 横坐标
     y: 120,                   // 纵坐标（基线位置）
     style: TextOptions {
-        size: 48.0,                   // 字号
+        size: 48.0,                   // 字号（磅，96dpi；与 PHP 版同口径，模板可直接搬）
         color: "#333333".into(),      // 颜色
         font: None,                   // 字体文件，None = 随包分发的阿里巴巴普惠体
         align: poster::drivers::TextAlign::Center,  // left | center | right
@@ -577,6 +577,9 @@ poster-rust 参照 [poster-php](https://github.com/erikwang2013/poster-php) 移�
 | 存储 | File / Session / Redis / PSR-16 | Memory / File / Redis（Session 为 PHP 特有） |
 | 框架适配 | Laravel / ThinkPHP / Webman / Hyperf / Yii2 / Yii3 | Guard + axum / actix-web / rocket / poem / salvo / warp / bee-rust / e-cat |
 | 配置 | `config/poster.php` 数组 | `PosterConfig` 结构体（键名对齐，可 serde 序列化） |
+| 文字 size 口径 | `imagettftext` 的磅值（96dpi ≈ ×4/3 px） | 同口径（按字体度量自动换算，同数值视觉大小一致） |
+| 背景图片 | 拉伸到画布 | 等比 cover + 居中裁剪（不变形） |
+| 二维码尺寸 | `intval` 量化到模块整数倍 | 精确到指定像素（浮点缩放） |
 | 自定义元素注册 | 运行时注册新元素类 | 内置 14 种（枚举分发），运行时注册暂不提供 |
 | 多语言文档 | 14 语言 | 中文 + 英文 |
 

@@ -73,8 +73,8 @@ fn main() -> poster::Result<()> {
             "stroke",
             ArtisticTextElement {
                 x: 60,
-                y: 110,
-                size: 64.0,
+                y: 128,          // 字变准后（与 PHP 同口径）标题下移，避免贴顶
+                size: 60.0,
                 color: "#FFFFFF".into(),
                 stroke_color: "#C2402F".into(),
                 stroke_width: 2,
@@ -85,7 +85,7 @@ fn main() -> poster::Result<()> {
             "纯 Rust · 14 种元素 · 一行链式调用",
             TextElement {
                 x: 375,
-                y: 230,
+                y: 238,
                 style: TextOptions {
                     size: 26.0,
                     color: "#8A6A5B".into(),
@@ -235,9 +235,9 @@ fn main() -> poster::Result<()> {
         .add_icon(
             "heart",
             IconElement {
-                x: 350,
-                y: 1270,
-                size: 28,
+                x: 585,
+                y: 1262,        // 未提供 FontAwesome 字体时渲染为字面 "[heart]"
+                size: 20,
                 color: "#FF6B6B".into(),
                 ..Default::default()
             },
@@ -245,9 +245,9 @@ fn main() -> poster::Result<()> {
         .add_emoticon(
             "happy",
             EmoticonElement {
-                x: 420,
-                y: 1270,
-                size: 24,
+                x: 340,
+                y: 1262,
+                size: 18,
                 color: "#8A6A5B".into(),
                 ..Default::default()
             },
@@ -255,8 +255,8 @@ fn main() -> poster::Result<()> {
         .add_emoji(
             "A",
             EmojiElement {
-                x: 500,
-                y: 1270,
+                x: 520,
+                y: 1262,
                 size: 24,
                 ..Default::default()
             },
@@ -265,9 +265,9 @@ fn main() -> poster::Result<()> {
             "限时活动",
             "neon",
             ArtisticTextElement {
-                x: 560,
-                y: 1278,
-                size: 32.0,
+                x: 545,
+                y: 1212,         // 二维码文案下方的空带
+                size: 22.0,
                 glow_color: Some("#FF6B6B".into()),
                 ..Default::default()
             },
