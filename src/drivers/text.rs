@@ -3,21 +3,72 @@
 //! 对应 PHP 版 `Drivers/TextTrait` + `GdDriver::text()`：
 //! - 换行规则一致：含 CJK 按字符切、否则按空白切词；断点用累加宽度，行尾用整行实测校正。
 //! - `y` 是基线位置（同 `imagettftext`），`align` 时 `x` 是中/右锚点。
+//!
+//! 绘制带一层整行缓存：同一字体实例上 `(text, size, color, angle)` 相同的行只光栅化一次
+//! （水印/描边艺术字会重复画同一行几十次）。命中与未命中的像素**逐字节一致**：
+//! 未旋转分支缓存的是原序覆盖事件、按同一套加权求和回放；旋转分支缓存的就是贴回去的那块位图。
 
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
-use ab_glyph::{Font as _, FontArc, PxScale, ScaleFont as _};
+use ab_glyph::{Font as _, FontArc, GlyphId, PxScale, ScaleFont as _, point};
 use image::{Rgba, RgbaImage};
 use imageproc::drawing::draw_text_mut;
 use imageproc::geometric_transformations::{Interpolation, rotate_about_center};
+use imageproc::pixelops::weighted_sum;
 
 use crate::error::{PosterError, Result};
 
-/// 已加载的字体（内部 `FontArc`，可廉价克隆/共享）。
+/// 字体实例 id 分配器（缓存键的一部分，`load` / `from_bytes` 每次自增）。
+static NEXT_FONT_ID: AtomicU64 = AtomicU64::new(1);
+
+/// 整行缓存上限：条目数与总字节数双上限，超限整体清空。
+const MAX_CACHE_ENTRIES: usize = 256;
+const MAX_CACHE_BYTES: usize = 16 << 20;
+
+/// 已加载的字体（内部 `FontArc`，可廉价克隆/共享；克隆共享同一份行缓存）。
 #[derive(Clone)]
 pub struct Font {
     inner: FontArc,
+    id: u64,
+    cache: Arc<Mutex<LineCache>>,
+}
+
+/// 一次字形覆盖：相对「绘制原点」的像素偏移 + 覆盖度。
+///
+/// `a` 就是 `imageproc` 交给 `weighted_sum` 的 gv（clamp 后，未再量化），
+/// 回放走同一套加权求和，所以与逐字形绘制逐比特一致。
+struct Cover {
+    dx: i32,
+    dy: i32,
+    a: f32,
+}
+
+/// 缓存条目：未旋转存覆盖事件（可回放到任意画布），旋转存整块已旋转位图。
+#[derive(Clone)]
+enum LineEntry {
+    Events(Arc<Vec<Cover>>),
+    Rotated(Arc<RgbaImage>),
+}
+
+impl LineEntry {
+    fn bytes(&self) -> usize {
+        match self {
+            LineEntry::Events(events) => events.len() * std::mem::size_of::<Cover>(),
+            LineEntry::Rotated(tile) => tile.as_raw().len(),
+        }
+    }
+}
+
+/// 缓存键：(字体实例 id, 文本, size 位模式, RGBA, 角度位模式)。
+type LineKey = (u64, String, u32, [u8; 4], u32);
+
+#[derive(Default)]
+struct LineCache {
+    map: HashMap<LineKey, LineEntry>,
+    bytes: usize,
 }
 
 /// 行高缺省比例，与 PHP 一致：`size * 1.5`。
@@ -34,7 +85,11 @@ impl Font {
     /// 从字节加载字体。
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self> {
         FontArc::try_from_vec(bytes)
-            .map(|inner| Self { inner })
+            .map(|inner| Self {
+                inner,
+                id: NEXT_FONT_ID.fetch_add(1, Ordering::Relaxed),
+                cache: Arc::new(Mutex::new(LineCache::default())),
+            })
             .map_err(|e| PosterError::Font(format!("字体解析失败: {e}")))
     }
 
@@ -153,6 +208,9 @@ impl Font {
     }
 
     /// 画一行文本；`(x, baseline_y)` 是基线锚点，`angle` 为逆时针度数（0 = 不旋转）。
+    ///
+    /// 命中整行缓存时按缓存回放，未命中时走原绘制流程并顺手把结果存进缓存；
+    /// 两条路径的输出逐字节一致（见 `draw_text_record` / `replay_events`）。
     #[allow(clippy::too_many_arguments)] // 一行文本的完整定位/样式参数
     pub fn draw_line(
         &self,
@@ -167,28 +225,32 @@ impl Font {
         if text.is_empty() {
             return;
         }
+        let key: LineKey = (self.id, text.to_string(), size.to_bits(), color.0, angle.to_bits());
+        // 命中的 Arc 克隆后立刻放锁：回放/贴图不占着缓存锁
+        let hit = self.cache.lock().ok().and_then(|c| c.map.get(&key).cloned());
+
         if angle.abs() < 0.001 {
-            let y_top = baseline_y - self.ascent(size);
-            draw_text_mut(
-                img,
-                color,
-                x.round() as i32,
-                y_top.round() as i32,
-                self.px_scale(size),
-                &self.inner,
-                text,
-            );
+            let x0 = x.round() as i32;
+            let y0 = (baseline_y - self.ascent(size)).round() as i32;
+            if let Some(LineEntry::Events(events)) = hit.as_ref() {
+                replay_events(img, x0, y0, color, events);
+                return;
+            }
+            let mut events = Vec::new();
+            self.draw_text_record(img, color, x0, y0, self.px_scale(size), text, &mut events);
+            self.store(key, LineEntry::Events(Arc::new(events)));
             return;
         }
 
         // 旋转：文本画在以锚点为中心的正方形临时画布上，绕中心旋转后贴回。
-        let w = self.measure(text, size);
-        let asc = self.ascent(size).max(0.0);
-        let desc = self.descent(size);
-        let radius = (w * w + asc.max(desc) * asc.max(desc)).sqrt().ceil() + 8.0;
-        let side = (radius * 2.0).ceil().max(2.0) as u32;
+        let (side, anchor, asc) = self.rotated_layout(text, size);
+        let dx = (x - anchor).round() as i64;
+        let dy = (baseline_y - anchor).round() as i64;
+        if let Some(LineEntry::Rotated(tile)) = hit.as_ref() {
+            image::imageops::overlay(img, &**tile, dx, dy);
+            return;
+        }
         let mut temp = RgbaImage::from_pixel(side, side, Rgba([0, 0, 0, 0]));
-        let anchor = (side / 2) as f32;
         draw_text_mut(
             &mut temp,
             color,
@@ -204,10 +266,119 @@ impl Font {
             Interpolation::Bilinear,
             Rgba([0, 0, 0, 0]),
         );
-        let dx = (x - anchor).round() as i64;
-        let dy = (baseline_y - anchor).round() as i64;
         image::imageops::overlay(img, &rotated, dx, dy);
+        self.store(key, LineEntry::Rotated(Arc::new(rotated)));
     }
+
+    /// 旋转分支的临时画布边长、中心锚点与上伸高度（只依赖 text/size，重算很便宜）。
+    fn rotated_layout(&self, text: &str, size: f32) -> (u32, f32, f32) {
+        let w = self.measure(text, size);
+        let asc = self.ascent(size).max(0.0);
+        let desc = self.descent(size);
+        let extent = asc.max(desc);
+        let radius = (w * w + extent * extent).sqrt().ceil() + 8.0;
+        let side = (radius * 2.0).ceil().max(2.0) as u32;
+        (side, (side / 2) as f32, asc)
+    }
+
+    /// 逐字形绘制一行，同时把覆盖事件按绘制顺序记进 `events`。
+    ///
+    /// 排布与混合逐字对应 `imageproc::drawing::draw_text_mut`（同一个 `weighted_sum`、
+    /// 同样的 `bb.min.round()` 定位与裁剪），所以未命中时的输出与旧实现逐像素相同；
+    /// 事件本身与画布无关（含画布外的点），回放时再按目标画布裁剪。
+    #[allow(clippy::too_many_arguments)] // 与 draw_text_mut 对齐的参数面
+    fn draw_text_record(
+        &self,
+        img: &mut RgbaImage,
+        color: Rgba<u8>,
+        x: i32,
+        y: i32,
+        scale: PxScale,
+        text: &str,
+        events: &mut Vec<Cover>,
+    ) {
+        let (img_w, img_h) = (img.width() as i32, img.height() as i32);
+        let font = self.inner.as_scaled(scale);
+        let mut pen = 0.0f32;
+        let mut last: Option<GlyphId> = None;
+        for c in text.chars() {
+            let glyph_id = font.glyph_id(c);
+            let glyph = glyph_id.with_scale_and_position(scale, point(pen, font.ascent()));
+            pen += font.h_advance(glyph_id);
+            let Some(outlined) = font.outline_glyph(glyph) else {
+                continue;
+            };
+            if let Some(last) = last {
+                pen += font.kern(glyph_id, last);
+            }
+            last = Some(glyph_id);
+            let bb = outlined.px_bounds();
+            let bx = x + bb.min.x.round() as i32;
+            let by = y + bb.min.y.round() as i32;
+            outlined.draw(|gx, gy, gv| {
+                let gv = gv.clamp(0.0, 1.0);
+                let px = gx as i32 + bx;
+                let py = gy as i32 + by;
+                // 未覆盖：加权求和恒等（pixel * 1.0 + color * 0.0 == pixel），记录与绘制都可跳过
+                if gv == 0.0 {
+                    return;
+                }
+                events.push(Cover { dx: px - x, dy: py - y, a: gv });
+                if !(0..img_w).contains(&px) || !(0..img_h).contains(&py) {
+                    return;
+                }
+                paint(img, px as u32, py as u32, color, gv);
+            });
+        }
+    }
+
+    /// 存一条缓存；超过条目/字节上限就整体清空。
+    fn store(&self, key: LineKey, entry: LineEntry) {
+        let key_text_len = key.1.len();
+        let entry_bytes = entry.bytes() + key_text_len;
+        if entry_bytes > MAX_CACHE_BYTES {
+            return; // 单条就超上限：不缓存（如超大旋转贴图）
+        }
+        let Ok(mut cache) = self.cache.lock() else {
+            return; // 锁中毒：跳缓存，正常绘制
+        };
+        if cache.map.len() >= MAX_CACHE_ENTRIES || cache.bytes + entry_bytes > MAX_CACHE_BYTES {
+            // ponytail: 超限整体清空（简化淘汰，重复绘制的命中率足够）；要精细命中率再上真 LRU
+            cache.map.clear();
+            cache.bytes = 0;
+        }
+        cache.bytes += entry_bytes;
+        if let Some(old) = cache.map.insert(key, entry) {
+            // 覆盖旧条目（键含角度位，实际不可达）；键相同，文本长度也一并扣回
+            cache.bytes -= old.bytes() + key_text_len;
+        }
+    }
+}
+
+/// 把缓存事件按原顺序回放到画布：与未命中时逐字形同序同值、同快慢分档。
+fn replay_events(img: &mut RgbaImage, x: i32, y: i32, color: Rgba<u8>, events: &[Cover]) {
+    let (img_w, img_h) = (img.width() as i32, img.height() as i32);
+    for e in events {
+        let px = x + e.dx;
+        let py = y + e.dy;
+        if (0..img_w).contains(&px) && (0..img_h).contains(&py) {
+            paint(img, px as u32, py as u32, color, e.a);
+        }
+    }
+}
+
+/// 按覆盖度落一个像素；两条路径共用，保证同值同结果。
+///
+/// 全覆盖（gv == 1.0）时 `weighted_sum` 逐通道恒为 `clamp(color * 1.0) == color`，
+/// 直接写像素即可 —— 这是命中回放里最省的一档（内点占多数），且与逐字形绘制逐比特一致。
+#[inline]
+fn paint(img: &mut RgbaImage, px: u32, py: u32, color: Rgba<u8>, coverage: f32) {
+    if coverage >= 1.0 {
+        img.put_pixel(px, py, color);
+        return;
+    }
+    let pixel = *img.get_pixel(px, py);
+    img.put_pixel(px, py, weighted_sum(pixel, color, 1.0 - coverage, coverage));
 }
 
 /// 切分换行 token：含 CJK 逐字，否则按空白切词（保留空白 token，与 PHP 一致）。
@@ -295,5 +466,101 @@ mod tests {
         let f = test_font();
         let lines = f.wrap("上\n下", 20.0, 0.0);
         assert_eq!(lines, vec!["上", "下"]);
+    }
+
+    fn canvas() -> RgbaImage {
+        RgbaImage::from_pixel(400, 220, Rgba([255, 255, 255, 255]))
+    }
+
+    #[test]
+    fn cache_hit_is_pixel_identical() {
+        let cold = test_font(); // 新实例 = 冷缓存，第一笔画必然未命中
+
+        let mut miss = canvas();
+        cold.draw_line(&mut miss, "缓存命中Ag", 30.0, 120.0, 40.0, Rgba([12, 34, 56, 200]), 0.0);
+        let mut hit = canvas();
+        cold.draw_line(&mut hit, "缓存命中Ag", 30.0, 120.0, 40.0, Rgba([12, 34, 56, 200]), 0.0);
+        assert_eq!(miss.as_raw(), hit.as_raw(), "未旋转命中与未命中必须逐像素一致");
+
+        // 旋转分支：同样第一笔未命中、第二笔命中
+        let mut miss = canvas();
+        cold.draw_line(&mut miss, "旋转Ag", 120.0, 150.0, 36.0, Rgba([200, 10, 10, 255]), 17.5);
+        let mut hit = canvas();
+        cold.draw_line(&mut hit, "旋转Ag", 120.0, 150.0, 36.0, Rgba([200, 10, 10, 255]), 17.5);
+        assert_eq!(miss.as_raw(), hit.as_raw(), "旋转命中与未命中必须逐像素一致");
+    }
+
+    #[test]
+    fn cache_hit_clips_like_direct_draw() {
+        let text = "边缘裁剪 Ag";
+        let color = Rgba([0, 0, 0, 255]);
+        let warm = test_font();
+        let mut first = canvas(); // 未命中：先在同一键上填满缓存
+        warm.draw_line(&mut first, text, 300.0, 100.0, 48.0, color, 0.0);
+
+        let mut expect = canvas(); // 冷实例直接画：命中时部分出画布
+        test_font().draw_line(&mut expect, text, -60.0, 20.0, 48.0, color, 0.0);
+        let mut hit = canvas(); // 命中：换位置，裁剪要与直接绘制一致
+        warm.draw_line(&mut hit, text, -60.0, 20.0, 48.0, color, 0.0);
+        assert_eq!(expect.as_raw(), hit.as_raw(), "命中与直接绘制应在同一位置同样裁剪");
+    }
+
+    #[test]
+    fn cache_variants_do_not_collide() {
+        let warm = test_font(); // 同一实例反复画，第 2 笔必命中
+        let cases: &[(&str, f32, [u8; 4], f32)] = &[
+            ("海报Ag", 48.0, [0, 0, 0, 255], 0.0),
+            ("海报Ag", 48.0, [255, 0, 0, 255], 0.0), // 颜色不同
+            ("海报Ag", 32.0, [0, 0, 0, 255], 0.0),   // size 不同
+            ("海报Ag", 48.0, [0, 0, 0, 255], 12.0),  // 角度不同（旋转分支）
+            ("海报Ag", 48.0, [0, 0, 0, 128], 0.0),   // 半透明
+            ("另一个字", 48.0, [0, 0, 0, 255], 0.0), // 文本不同
+        ];
+        for &(text, size, rgba, angle) in cases {
+            // 冷字体实例 = 未命中基准
+            let mut expect = canvas();
+            test_font().draw_line(&mut expect, text, 40.0, 130.0, size, Rgba(rgba), angle);
+            // 同一实例第 2 笔 = 命中
+            let mut first = canvas();
+            warm.draw_line(&mut first, text, 40.0, 130.0, size, Rgba(rgba), angle);
+            let mut second = canvas();
+            warm.draw_line(&mut second, text, 40.0, 130.0, size, Rgba(rgba), angle);
+            assert_eq!(expect.as_raw(), second.as_raw(), "命中结果串键: {text} {size} {rgba:?} {angle}");
+            assert_eq!(first.as_raw(), second.as_raw(), "复用同一键不一致: {text} {size} {rgba:?} {angle}");
+        }
+    }
+
+    /// 记录路径必须与 `imageproc::drawing::draw_text_mut` 逐字节一致（含负坐标裁剪），
+    /// 否则「未命中 = 旧输出」的前提就破了 —— 也是 imageproc 升级时的漂移哨兵。
+    #[test]
+    fn record_path_matches_imageproc() {
+        let f = test_font();
+        let cases: &[(&str, f32, i32, i32)] = &[
+            ("海报Ag", 48.0, 20, 60),
+            ("cache 缓存命中", 24.0, 0, 0),
+            ("AvTo 囗", 40.0, -30, -10), // 部分出画布：裁剪要与 imageproc 一致
+            ("海报Ag", 48.0, 380, 200),  // 大部分出画布
+        ];
+        for &(text, size, x, y) in cases {
+            let color = Rgba([7, 200, 30, 180]);
+            let mut expect = RgbaImage::from_pixel(300, 200, Rgba([255, 255, 255, 255]));
+            draw_text_mut(&mut expect, color, x, y, f.px_scale(size), &f.inner, text);
+            let mut actual = RgbaImage::from_pixel(300, 200, Rgba([255, 255, 255, 255]));
+            let mut events = Vec::new();
+            f.draw_text_record(&mut actual, color, x, y, f.px_scale(size), text, &mut events);
+            assert_eq!(expect.as_raw(), actual.as_raw(), "记录路径与 imageproc 不一致: {text}");
+        }
+    }
+
+    #[test]
+    fn cache_stays_within_bounds() {
+        let f = test_font();
+        for size in 8..280 {
+            let mut img = RgbaImage::from_pixel(80, 80, Rgba([255, 255, 255, 255]));
+            f.draw_line(&mut img, "A", 4.0, 60.0, size as f32, Rgba([0, 0, 0, 255]), 0.0);
+        }
+        let cache = f.cache.lock().expect("测试内可 unwrap");
+        assert!(cache.map.len() <= MAX_CACHE_ENTRIES, "条目数超上限: {}", cache.map.len());
+        assert!(cache.bytes <= MAX_CACHE_BYTES, "字节数超上限: {}", cache.bytes);
     }
 }
