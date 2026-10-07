@@ -144,7 +144,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 二维码 + 仓库地址
     b.add_qrcode(
-        &format!("https://{REPO}"),
+        format!("https://{REPO}"),
         QrcodeElement {
             x: 1020,
             y: 52,

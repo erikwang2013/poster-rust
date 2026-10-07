@@ -236,7 +236,7 @@ fn render_is_cached_until_invalidated() {
     let mut detached = builder.render().unwrap();
     detached.image_mut().put_pixel(0, 0, Rgba([0, 255, 0, 255]));
     let untouched = builder.render().unwrap();
-    assert!(!has_color("#00FF00")(&untouched.image().get_pixel(0, 0)), "render() 应返回副本");
+    assert!(!has_color("#00FF00")(untouched.image().get_pixel(0, 0)), "render() 应返回副本");
 
     // 改元素 → 缓存失效，输出随之变化
     builder.add_shape(

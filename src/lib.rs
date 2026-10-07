@@ -65,7 +65,7 @@ pub fn captcha_create(captcha_type: Option<&str>) -> Result<CaptchaBuilder> {
 }
 
 /// 校验用户答案（等价 PHP `captcha_verify()`；限流身份为默认身份，多用户服务
-/// 请用 [`Guard::verify`] 或 `CaptchaManager::verify_as` 传入 IP / uid）。
+/// 请用 [`Guard::verify_as`] 传入 IP / uid）。
 pub fn captcha_verify(key: &str, answer: Answer) -> Result<bool> {
     default_manager()?.verify(key, answer)
 }

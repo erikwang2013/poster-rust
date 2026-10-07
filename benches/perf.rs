@@ -123,7 +123,7 @@ fn captcha_manager() -> CaptchaManager {
 }
 
 /// 750×1334 全元素海报：14 种元素各画一次（poster_showcase 的紧凑版，不依赖 examples/）。
-fn full_poster() -> poster::Result<()> {
+fn full_poster() -> poster::Result<poster::ImageDriver> {
     let pet = assets::pet_path().to_string_lossy().into_owned();
 
     let mut b = PosterBuilder::new()?;
@@ -295,12 +295,11 @@ fn full_poster() -> poster::Result<()> {
         },
     );
 
-    black_box(b.render()?);
-    Ok(())
+    b.render()
 }
 
 /// 文字密集：100 次 `add_text` 后渲染一次。
-fn text_dense() -> poster::Result<()> {
+fn text_dense() -> poster::Result<poster::ImageDriver> {
     let mut b = PosterBuilder::new()?;
     b.width(750).height(1334);
     b.background("#FFFFFF");
@@ -319,6 +318,5 @@ fn text_dense() -> poster::Result<()> {
             },
         );
     }
-    black_box(b.render()?);
-    Ok(())
+    b.render()
 }
