@@ -63,6 +63,9 @@ actix-web = "4"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tower = { version = "0.5", features = ["util"] }
 warp = { version = "0.4.3", features = ["test"] }
+poem = { version = "3.1.12", default-features = false, features = ["server", "test"] }
+# default-features = false：避开默认的 aws-lc-rs（C 库构建），只补 `test` 模块
+salvo = { version = "1.0.1", default-features = false, features = ["test"] }
 
 [[example]]
 name = "axum_captcha"
@@ -79,6 +82,18 @@ required-features = ["axum"]
 [[test]]
 name = "integrations_warp"
 required-features = ["warp"]
+
+[[test]]
+name = "integrations_rocket"
+required-features = ["rocket"]
+
+[[test]]
+name = "integrations_poem"
+required-features = ["poem"]
+
+[[test]]
+name = "integrations_salvo"
+required-features = ["salvo"]
 
 [profile.release]
 lto = "thin"
