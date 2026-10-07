@@ -1,5 +1,6 @@
 //! 海报 Builder，对应 PHP `PosterBuilder`：链式拼装 → 渲染 → 保存 / 输出。
 
+use std::cell::{Ref, RefCell};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -41,7 +42,8 @@ pub enum Direction {
 /// # Ok::<(), poster::PosterError>(())
 /// ```
 ///
-/// 所有 `add_*` 返回 `&mut Self`，可链式调用；`render()` 可重复调用（每次都重新绘制）。
+/// 所有 `add_*` 返回 `&mut Self`，可链式调用；`render()` 可重复调用，结果内部
+/// 缓存（等价 PHP 的 `$rendered` 标志），无变更时不再重绘。
 pub struct PosterBuilder {
     width: Option<u32>,
     height: Option<u32>,
@@ -52,6 +54,9 @@ pub struct PosterBuilder {
     bg_color: Option<String>,
     bg_image: Option<PathBuf>,
     gradient: Option<(String, String, Direction)>,
+    /// 渲染结果缓存；任意变更方法通过 [`Self::invalidate`] 作废。
+    /// 构建器按单线程使用（`RefCell`，非 `Sync`）。
+    cache: RefCell<Option<ImageDriver>>,
 }
 
 impl Default for PosterBuilder {
@@ -67,6 +72,7 @@ impl Default for PosterBuilder {
             bg_color: None,
             bg_image: None,
             gradient: None,
+            cache: RefCell::new(None),
         }
     }
 }
@@ -81,12 +87,14 @@ impl PosterBuilder {
 
     /// 画布宽（覆盖模板 / 配置默认值）。
     pub fn width(&mut self, width: u32) -> &mut Self {
+        self.invalidate();
         self.width = Some(width);
         self
     }
 
     /// 画布高。
     pub fn height(&mut self, height: u32) -> &mut Self {
+        self.invalidate();
         self.height = Some(height);
         self
     }
@@ -95,6 +103,7 @@ impl PosterBuilder {
     ///
     /// 与 PHP 一致：不认识的值直接忽略。三种背景的优先级是渐变 > 图片 > 纯色。
     pub fn background(&mut self, color_or_path: &str) -> &mut Self {
+        self.invalidate();
         if is_hex_color(color_or_path) {
             self.bg_color = Some(color_or_path.to_string());
         } else if Path::new(color_or_path).is_file() {
@@ -105,6 +114,7 @@ impl PosterBuilder {
 
     /// 渐变背景（8px 一档色带近似，同 PHP）。
     pub fn background_gradient(&mut self, from: &str, to: &str, direction: Direction) -> &mut Self {
+        self.invalidate();
         self.gradient = Some((from.to_string(), to.to_string(), direction));
         self
     }
@@ -113,6 +123,7 @@ impl PosterBuilder {
 
     /// 文字。
     pub fn add_text(&mut self, text: impl Into<String>, mut options: TextElement) -> &mut Self {
+        self.invalidate();
         options.text = text.into();
         self.elements.push(Element::Text(options));
         self
@@ -120,6 +131,7 @@ impl PosterBuilder {
 
     /// 图片；文件缺失时按 `poster.placeholder` 兜底。
     pub fn add_image(&mut self, src: impl Into<String>, mut options: ImageElement) -> &mut Self {
+        self.invalidate();
         options.src = src.into();
         self.elements.push(Element::Image(options));
         self
@@ -127,6 +139,7 @@ impl PosterBuilder {
 
     /// 项目宠物 Posty（`assets/pet.png`），等价于 `add_image(assets::pet_path(), options)`。
     pub fn add_pet(&mut self, mut options: ImageElement) -> &mut Self {
+        self.invalidate();
         options.src = assets::pet_path().to_string_lossy().into_owned();
         self.elements.push(Element::Image(options));
         self
@@ -134,6 +147,7 @@ impl PosterBuilder {
 
     /// 二维码。
     pub fn add_qrcode(&mut self, content: impl Into<String>, mut options: QrcodeElement) -> &mut Self {
+        self.invalidate();
         options.content = content.into();
         self.elements.push(Element::Qrcode(options));
         self
@@ -141,6 +155,7 @@ impl PosterBuilder {
 
     /// 头像（默认圆形）。
     pub fn add_avatar(&mut self, src: impl Into<String>, mut options: AvatarElement) -> &mut Self {
+        self.invalidate();
         options.src = src.into();
         self.elements.push(Element::Avatar(options));
         self
@@ -148,6 +163,7 @@ impl PosterBuilder {
 
     /// 形状：`rect` / `circle` / `ellipse`。
     pub fn add_shape(&mut self, shape: &str, mut options: ShapeElement) -> &mut Self {
+        self.invalidate();
         options.shape = shape.into();
         self.elements.push(Element::Shape(options));
         self
@@ -155,6 +171,7 @@ impl PosterBuilder {
 
     /// 直线。
     pub fn add_line(&mut self, options: LineElement) -> &mut Self {
+        self.invalidate();
         self.elements.push(Element::Line(options));
         self
     }
@@ -165,6 +182,7 @@ impl PosterBuilder {
         text: impl Into<String>,
         mut options: WatermarkElement,
     ) -> &mut Self {
+        self.invalidate();
         options.text = text.into();
         self.elements.push(Element::Watermark(options));
         self
@@ -172,12 +190,14 @@ impl PosterBuilder {
 
     /// 表格。
     pub fn add_table(&mut self, options: TableElement) -> &mut Self {
+        self.invalidate();
         self.elements.push(Element::Table(options));
         self
     }
 
     /// 图表：`bar` / `pie` / `line`。
     pub fn add_chart(&mut self, chart_type: &str, data: Vec<Value>, mut options: ChartElement) -> &mut Self {
+        self.invalidate();
         options.chart = chart_type.into();
         options.data = data;
         self.elements.push(Element::Chart(options));
@@ -186,6 +206,7 @@ impl PosterBuilder {
 
     /// 日历。
     pub fn add_calendar(&mut self, options: CalendarElement) -> &mut Self {
+        self.invalidate();
         self.elements.push(Element::Calendar(options));
         self
     }
@@ -197,6 +218,7 @@ impl PosterBuilder {
         style: &str,
         mut options: ArtisticTextElement,
     ) -> &mut Self {
+        self.invalidate();
         options.text = text.into();
         options.style = style.into();
         self.elements.push(Element::ArtisticText(options));
@@ -205,6 +227,7 @@ impl PosterBuilder {
 
     /// Emoji。
     pub fn add_emoji(&mut self, emoji: impl Into<String>, mut options: EmojiElement) -> &mut Self {
+        self.invalidate();
         options.emoji = emoji.into();
         self.elements.push(Element::Emoji(options));
         self
@@ -212,6 +235,7 @@ impl PosterBuilder {
 
     /// 图标（FontAwesome 名，见 `elements::icon::icon_char`）。
     pub fn add_icon(&mut self, icon: &str, mut options: IconElement) -> &mut Self {
+        self.invalidate();
         options.icon = icon.into();
         self.elements.push(Element::Icon(options));
         self
@@ -223,6 +247,7 @@ impl PosterBuilder {
         expression: &str,
         mut options: EmoticonElement,
     ) -> &mut Self {
+        self.invalidate();
         options.expression = expression.into();
         self.elements.push(Element::Emoticon(options));
         self
@@ -231,6 +256,7 @@ impl PosterBuilder {
     /// 按类型名追加元素（类型见 `elements::TYPES`），未知类型报错。
     pub fn add(&mut self, kind: &str, options: Value) -> Result<&mut Self> {
         self.elements.push(Element::from_parts(kind, options)?);
+        self.invalidate();
         Ok(self)
     }
 
@@ -240,12 +266,14 @@ impl PosterBuilder {
     ///
     /// 默认模板元素**整体替换**手写元素；要两者共存用 [`Self::replace_elements`]`(false)`。
     pub fn use_template(&mut self, template: PosterTemplate) -> &mut Self {
+        self.invalidate();
         self.template = Some(template);
         self
     }
 
     /// `true`（默认）= 模板整体替换手写元素；`false` = 追加，先手写元素后模板元素。
     pub fn replace_elements(&mut self, replace: bool) -> &mut Self {
+        self.invalidate();
         self.replace_elements = replace;
         self
     }
@@ -257,6 +285,7 @@ impl PosterBuilder {
         K: Into<String>,
         V: ToString,
     {
+        self.invalidate();
         self.vars = variables
             .into_iter()
             .map(|(key, value)| (key.into(), value.to_string()))
@@ -287,8 +316,52 @@ impl PosterBuilder {
 
     // ── 渲染与输出 ──────────────────────────────────────
 
-    /// 渲染成画布；可重复调用，每次都重新绘制。
+    /// 渲染成画布。
+    ///
+    /// 无变更时命中缓存（同 PHP 的 `$rendered` 标志），只克隆一次已有画布；
+    /// **返回的是缓存画布的副本**，改动它不影响后续调用。任何变更方法
+    /// （`width`/`height`/背景/`add_*`/`with` 等）都会作废缓存。
     pub fn render(&self) -> Result<ImageDriver> {
+        let cached = self.cached_canvas()?;
+        ImageDriver::from_image(cached.image().clone())
+    }
+
+    /// 保存到文件：格式按扩展名推断（jpg/jpeg/png/webp/gif，未知扩展名回落 jpg）；
+    /// `quality` 为 `None` 时按驱动规则取配置（JPEG 用 `image.quality`，PNG 用 `poster.png_compression`）。
+    pub fn save(&self, path: impl AsRef<Path>, quality: Option<u8>) -> Result<()> {
+        self.cached_canvas()?.save(path.as_ref(), None, quality)
+    }
+
+    /// 输出 data URI（`data:image/png;base64,…`）。
+    pub fn output(&self, format: &str, quality: Option<u8>) -> Result<String> {
+        self.cached_canvas()?.output(format, quality)
+    }
+
+    /// 输出原始编码字节（不经 base64）：直接写 HTTP 响应体用这个，
+    /// 需要 data URI 用 [`Self::output`]。格式 / 质量语义与 `output` 一致。
+    pub fn output_bytes(&self, format: &str, quality: Option<u8>) -> Result<Vec<u8>> {
+        self.cached_canvas()?.encode(format, quality)
+    }
+
+    // ── 内部 ────────────────────────────────────────────
+
+    /// 作废渲染缓存；所有 `&mut self` 变更方法都调用它。
+    fn invalidate(&mut self) {
+        self.cache.get_mut().take();
+    }
+
+    /// 借用缓存画布，未命中时先渲染（`save` / `output` / `output_bytes` 用，避免克隆）。
+    fn cached_canvas(&self) -> Result<Ref<'_, ImageDriver>> {
+        if self.cache.borrow().is_none() {
+            *self.cache.borrow_mut() = Some(self.draw()?);
+        }
+        Ok(Ref::map(self.cache.borrow(), |cache| {
+            cache.as_ref().expect("刚渲染")
+        }))
+    }
+
+    /// 实际绘制（缓存未命中时调用）。
+    fn draw(&self) -> Result<ImageDriver> {
         let (width, height) = self.dimensions();
         let mut canvas = self.background_canvas(width, height)?;
         let ctx = RenderCtx {
@@ -299,19 +372,6 @@ impl PosterBuilder {
         }
         Ok(canvas)
     }
-
-    /// 保存到文件：格式按扩展名推断（jpg/jpeg/png/webp/gif，未知扩展名回落 jpg）；
-    /// `quality` 为 `None` 时按驱动规则取配置（JPEG 用 `image.quality`，PNG 用 `poster.png_compression`）。
-    pub fn save(&self, path: impl AsRef<Path>, quality: Option<u8>) -> Result<()> {
-        self.render()?.save(path.as_ref(), None, quality)
-    }
-
-    /// 输出 data URI（`data:image/png;base64,…`）。
-    pub fn output(&self, format: &str, quality: Option<u8>) -> Result<String> {
-        self.render()?.output(format, quality)
-    }
-
-    // ── 内部 ────────────────────────────────────────────
 
     /// 生效尺寸：显式 > 模板 > 配置默认。
     fn dimensions(&self) -> (u32, u32) {
