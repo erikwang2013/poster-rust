@@ -598,7 +598,15 @@ HttpServer::new(move || {
 poster-rust = { version = "1.0", features = ["rocket"] }   # 或 poem / salvo / warp / bee-rust / ecat
 ```
 
-每个集成都提供请求守卫提取 + 出图路由（`GET {path}/{key} → image/png`，`Cache-Control: no-store`，等价 PHP 版 `captcha.route`）。可直接运行的示例见 [`examples/`](examples/)（`axum_captcha` / `actix_captcha` / `guard_native`）。
+8 个框架现在端点齐平，每个集成都提供三条路由：
+
+| 端点 | 说明 |
+|------|------|
+| `GET {path}/new?type=…` | 生成验证码，返回 `CaptchaResult` JSON（`image` 为 data URI） |
+| `GET {path}/{key}` | 直接出图（`image/png`，`Cache-Control: no-store`，等价 PHP 版 `captcha.route`） |
+| `POST {path}/verify` | 校验 `{"key":…, "answer":…}` → `{"pass": bool}`，限流身份按请求派生 |
+
+可直接运行的示例见 [`examples/`](examples/)（`axum_captcha` / `actix_captcha` / `guard_native`）。
 
 ## 配置
 

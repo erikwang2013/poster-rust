@@ -313,7 +313,15 @@ Same `Guard`, per-framework extractors:
 poster-rust = { version = "1.0", features = ["rocket"] }   # or poem / salvo / warp / bee-rust / ecat
 ```
 
-Each integration ships a request guard extractor plus image routes (`GET {path}/{key} → image/png`, `Cache-Control: no-store`) matching the PHP version's `captcha.route`. Runnable examples: [`examples/`](examples/) (`axum_captcha` / `actix_captcha` / `guard_native`).
+All 8 frameworks now expose the same three routes:
+
+| Route | Purpose |
+|-------|---------|
+| `GET {path}/new?type=…` | Generate a captcha, returns `CaptchaResult` JSON (`image` is a data URI) |
+| `GET {path}/{key}` | Serve the image (`image/png`, `Cache-Control: no-store`) — matches the PHP version's `captcha.route` |
+| `POST {path}/verify` | Verify `{"key":…, "answer":…}` → `{"pass": bool}`, rate-limit identity derived per request |
+
+Runnable examples: [`examples/`](examples/) (`axum_captcha` / `actix_captcha` / `guard_native`).
 
 ## Configuration
 

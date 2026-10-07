@@ -2,6 +2,22 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.0] - 2026-10-07
+
+### 新增
+- **8 个框架端点齐平**：rocket / poem / salvo / warp 补上 `POST {path}/verify` 校验端点
+  （此前只有 axum / actix / bee-rust / e-cat 有）。请求体 `{"key","answer"}` → `{"pass": bool}`，
+  限流身份按请求派生，与其余框架逐字段一致。
+- 新增 `tests/integrations_warp.rs`（`warp::test`）：XFF 分桶限流、错误答案、非法 JSON 400。
+
+### 修复
+- **salvo 路由表（v1.0.x 存在）**：`{prefix}/new` 原先嵌在 `{prefix}/{key}` 之下，salvo 按相对段
+  拼接后实际路径成了 `/{prefix}/{key}/{prefix}/new`——`GET /captcha/new` 一直 404。改为平级兄弟路由。
+- **warp 出图路由未限方法（v1.0.x 存在）**：任意方法都会被 `path::param` 吃掉；补 `warp::get()`，
+  否则 `POST /captcha/verify` 的非法 JSON 会「回退」到出图路由变成 404 而非 400。
+- clippy `--all-targets` 清零（examples / tests / benches 共 5 处 lint），CI 的 clippy 同步升级为
+  `--all-targets`；`src/lib.rs` 文档链接 `[Guard::verify]` → `[Guard::verify_as]`。
+
 ## [1.0.1] - 2026-10-07
 
 ### 修复
@@ -50,6 +66,7 @@
   默认中文字体阿里巴巴普惠体。
 - 中英双语文档 + 架构 / 功能设计图。
 
-[Unreleased]: https://github.com/erikwang2013/poster-rust/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/erikwang2013/poster-rust/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.1.0
 [1.0.1]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.0.1
 [1.0.0]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.0.0
