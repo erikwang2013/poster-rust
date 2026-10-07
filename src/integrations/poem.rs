@@ -1,4 +1,4 @@
-//! Poem 集成：`Guard` 提取器 + `GET {path}/{key} → image/png` 路由。
+//! Poem 集成：`Guard` 提取器 + `GET {path}/{key} → image/png` 路由 + 校验端点。
 //!
 //! ```no_run
 //! # use std::sync::Arc;
@@ -13,12 +13,23 @@
 //! # }
 //! ```
 
-use poem::web::Path;
+use std::net::IpAddr;
+
+use poem::web::{Json, Path, RemoteAddr};
 use poem::{
-    FromRequest, Request, RequestBody, Response, Route, RouteMethod, get, http::StatusCode,
+    FromRequest, Request, RequestBody, Response, Route, RouteMethod, get, http::StatusCode, post,
 };
 
-use crate::guard::Guard;
+use crate::captcha::Answer;
+use crate::guard::{Guard, client_identity};
+
+/// 对端 IP：只有 TCP 连接有（Unix socket / 自定义连接返回 `None`）。
+fn peer_ip(addr: &RemoteAddr) -> Option<IpAddr> {
+    match &addr.0 {
+        poem::Addr::SocketAddr(addr) => Some(addr.ip()),
+        _ => None,
+    }
+}
 
 /// `Guard` 的 Poem 提取器：从 `Route::data(guard)` 取。
 impl<'a> FromRequest<'a> for Guard {
@@ -61,10 +72,39 @@ pub async fn captcha_new(
     }
 }
 
-/// 路由：`/captcha/new` 与 `/captcha/{key}`。
+/// 校验请求体：`{ "key": "…", "answer": … }`。
+#[derive(Debug, serde::Deserialize)]
+pub struct VerifyRequest {
+    pub key: String,
+    pub answer: Answer,
+}
+
+/// `POST {path}/verify` → `{"pass": true|false}`。
+///
+/// 限流身份按请求派生（[`client_identity`]：`X-Forwarded-For` 第一段 → 对端 IP → `"unknown"`）。
+/// 请求体 JSON 解析失败时由 [`Json`] 提取器返回 400（超大 413）。
+#[poem::handler]
+pub async fn captcha_verify(
+    guard: Guard,
+    req: &Request,
+    Json(body): Json<VerifyRequest>,
+) -> Response {
+    let identity = client_identity(req.header("x-forwarded-for"), peer_ip(req.remote_addr()));
+    match guard.verify_as(&body.key, body.answer, &identity) {
+        Ok(pass) => Response::builder()
+            .content_type("application/json")
+            .body(serde_json::json!({ "pass": pass }).to_string()),
+        Err(_) => Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .finish(),
+    }
+}
+
+/// 路由：`/captcha/new`、`/captcha/verify` 与 `/captcha/{key}`（具名段优先于参数段）。
 pub fn routes() -> Route {
     Route::new()
         .at("/captcha/new", get(captcha_new))
+        .at("/captcha/verify", post(captcha_verify))
         .at("/captcha/:key", get(captcha_image))
 }
 
@@ -72,6 +112,7 @@ pub fn routes() -> Route {
 pub fn routes_at(prefix: &str) -> Route {
     Route::new()
         .at(format!("{prefix}/new"), get(captcha_new))
+        .at(format!("{prefix}/verify"), post(captcha_verify))
         .at(format!("{prefix}/:key"), get(captcha_image))
 }
 
