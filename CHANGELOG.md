@@ -2,7 +2,7 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [1.1.1] - 2026-10-07
 
 ### 测试
 - rocket / poem / salvo 的 `POST {path}/verify` 补运行时 e2e（框架自带测试客户端：
@@ -10,6 +10,8 @@
   覆盖请求守卫取值、提取顺序、非法 JSON 的 4xx 渲染与 XFF 分桶限流；
   另加 salvo `GET /captcha/new` 可达性回归（钉住 1.1.0 的子路由拼接修复）。
   v1.1.0 时这三个框架只有编译验证，此套补齐运行时覆盖。
+  已知覆盖边界：poem / salvo 的测试客户端无法设置对端地址，「XFF 缺失 → 对端 IP」分支
+  只有 rocket 跑到端到端；`Guard` 未托管 / `verify_as` 出错（401/500）在测试环境无法触发。
 
 ## [1.1.0] - 2026-10-07
 
@@ -75,7 +77,8 @@
   默认中文字体阿里巴巴普惠体。
 - 中英双语文档 + 架构 / 功能设计图。
 
-[Unreleased]: https://github.com/erikwang2013/poster-rust/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/erikwang2013/poster-rust/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.1.1
 [1.1.0]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.1.0
 [1.0.1]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.0.1
 [1.0.0]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.0.0
