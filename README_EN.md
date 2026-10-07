@@ -1,5 +1,10 @@
 # poster-rust
 
+[![crates.io](https://img.shields.io/crates/v/poster-rust.svg)](https://crates.io/crates/poster-rust)
+[![docs.rs](https://img.shields.io/docsrs/poster-rust)](https://docs.rs/poster-rust)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/erikwang2013/poster-rust/ci.yml?branch=main&label=CI)](https://github.com/erikwang2013/poster-rust/actions/workflows/ci.yml)
+
 <p align="center">
   <img src="assets/pet.svg" width="200" alt="poster-rust mascot Posty" />
 </p>

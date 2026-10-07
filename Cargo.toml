@@ -49,6 +49,13 @@ salvo = { version = "1.0.1", optional = true, default-features = false }
 warp = { version = "0.4.3", optional = true, default-features = false }
 bee_router = { version = "1.2.3", optional = true, default-features = false }
 
+[package.metadata.docs.rs]
+all-features = true
+
+[[bench]]
+name = "perf"
+harness = false
+
 [dev-dependencies]
 rqrr = "0.8"
 axum = { version = "0.8", features = ["tokio", "http1"] }
