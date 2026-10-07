@@ -256,6 +256,17 @@ cfg.captcha.background_source = BackgroundSource::Dir("/path/to/my-backgrounds".
 config::set_global(cfg)?;
 ```
 
+#### 存储后端
+
+| 后端 | 适用 | 说明 |
+|------|------|------|
+| `MemoryStorage` | 单进程 / 测试 | 默认；`captcha.file_path` 未配置时使用 |
+| `FileStorage` | 单机多进程（各 worker 共享同一目录） | 原子写 + TTL；**尝试计数只在进程内互斥**，高并发下计数可能低估 |
+| `RedisStorage`（feature `redis`） | 多机 / 高并发 | `INCR` 原子计数，部署多实例时请用它 |
+
+> `CaptchaManager::new()` 按 `captcha.file_path` 自动在 Memory / File 之间选择；
+> Redis 需自行构造并传给 `with_storage` / `with_config_and_storage`。
+
 ### 二、海报生成
 
 #### 基础用法
@@ -276,7 +287,12 @@ builder.background_gradient("#FF6B6B", "#FF8E53", Direction::Vertical);
 builder.save("/output/poster.jpg", None)?;       // 保存到文件（路径推格式，质量取配置默认）
 builder.save("/output/poster.jpg", Some(90))?;   // 显式质量 0-100
 let data_url = builder.output("png", Some(90))?; // base64 data URL
+let bytes = builder.output_bytes("png", Some(90))?; // 原始字节（直接写 HTTP 响应体）
 ```
+
+> 渲染结果会缓存：同一 Builder 上多次 `save()` / `output()` / `render()` 只渲染一次，
+> 任何 `add_*` / 背景 / 宽高变更都会使缓存失效（与 PHP 版 `$rendered` 语义一致）。
+> 示例程序在 debug 构建下会慢一个数量级（750×1334 海报约 16s），性能测试请用 `--release`。
 
 #### 文字 `add_text()`
 
@@ -526,6 +542,14 @@ use poster::{Guard, captcha::CaptchaManager};
 
 let guard = Guard::from_manager(Arc::new(CaptchaManager::new()?))?;  // 接线期快速失败（存储探针）
 ```
+
+**限流身份**：校验端点的限流按请求身份分桶——`X-Forwarded-For` 第一段 → 对端 IP → `"unknown"`，
+由 `poster::guard::client_identity()` 派生，多用户服务不会互相挤占配额。
+
+> ⚠️ `X-Forwarded-For` 是客户端可伪造的头：直接暴露公网时请在可信代理层剥离/覆写它，
+> 或不用它（此时按对端 IP 分桶；axum 需挂 `into_make_service_with_connect_info::<SocketAddr>()`，
+> 否则退化为所有人共用一个 `"unknown"` 桶）。需要 session / uid 级身份时，
+> 直接调用 `Guard::verify_as(key, answer, identity)` 自行传入。
 
 ### axum
 

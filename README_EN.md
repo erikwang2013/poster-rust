@@ -212,9 +212,15 @@ builder.add_qrcode("https://example.com/page/123", QrcodeElement {
     ..Default::default()
 });
 
-builder.save("/output/poster.jpg", None)?;        // quality from config
-let data_url = builder.output("png", Some(90))?;  // base64 data URL
+builder.save("/output/poster.jpg", None)?;           // quality from config
+let data_url = builder.output("png", Some(90))?;     // base64 data URL
+let bytes = builder.output_bytes("png", Some(90))?;  // raw bytes (write straight to a response body)
 ```
+
+> Rendering is cached: repeated `save()` / `output()` / `render()` on the same builder render once;
+> any `add_*` / background / size change invalidates the cache (matches PHP's `$rendered` flag).
+> Examples are an order of magnitude slower in debug builds (~16s for a 750×1334 poster) — use
+> `--release` when measuring performance.
 
 #### Mascot `add_pet()`
 
@@ -260,6 +266,15 @@ use poster::{Guard, captcha::CaptchaManager};
 
 let guard = Guard::from_manager(Arc::new(CaptchaManager::new()?))?;  // fails fast (storage probe)
 ```
+
+**Rate-limit identity**: verification endpoints bucket the rate limit per request identity —
+first hop of `X-Forwarded-For` → peer IP → `"unknown"`, derived by
+`poster::guard::client_identity()`, so multi-user services no longer share one global quota.
+
+> ⚠️ `X-Forwarded-For` is client-spoofable: behind a public edge, strip/overwrite it at a trusted
+> proxy or ignore it (identity then falls back to the peer IP; with axum, mount
+> `into_make_service_with_connect_info::<SocketAddr>()` or everyone shares the `"unknown"` bucket).
+> For session / uid identity, call `Guard::verify_as(key, answer, identity)` directly.
 
 ### axum
 

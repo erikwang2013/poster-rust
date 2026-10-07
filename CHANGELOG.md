@@ -4,19 +4,34 @@
 
 ## [Unreleased]
 
+### 修复
+- **只开单个框架 feature 时无法编译**（v1.0.0 存在）：`axum` 缺 json/query/tokio/http1 特性、
+  `poem` 缺 `server` 特性。此前只有 `--all-features` 通过，是因为 `bee-rust`（bee_router）
+  间接打开了 axum 的这些特性，掩盖了缺口。现在 8 个 feature 逐个单独验证全绿：
+  axum / actix / rocket / poem / salvo / warp / bee-rust / ecat（+ redis）。
+- **集成层限流身份**：8 个框架的校验端点此前把所有请求计入同一个常量桶，用户量一大互相误杀。
+  现按请求派生（`X-Forwarded-For` 第一段 → 对端 IP → `"unknown"`，见 `guard::client_identity`），
+  并新增 `Guard::verify_as` 供 session / uid 级身份使用；README 补代理场景安全提示。
+
 ### 新增
+- `PosterBuilder::output_bytes()`：返回原始编码字节（直接写 HTTP 响应体），`output()` 保持 data URI。
 - 性能基准套件 `benches/perf.rs`：验证码生成、750×1334 全元素海报、100 次文字的密集排版，
   输出毫秒表格；`PERF_ASSERT=1` 时对预算断言（滑块 < 200ms / 全元素海报 < 1500ms / 100 次文字 < 400ms）。
-- GitHub Actions CI（`.github/workflows/ci.yml`）：rustfmt、clippy `-D warnings`、
-  三平台默认特性测试 + ubuntu 全特性测试。
+- GitHub Actions CI（`.github/workflows/ci.yml`）：rustfmt（历史代码未统一，暂 `continue-on-error`）、
+  clippy `-D warnings`、三平台默认特性测试 + ubuntu 全特性测试。
 - README（中 / 英）徽章：crates.io / docs.rs / License / CI。
 - docs.rs 元数据 `all-features = true`：8 个框架集成与 Redis 相关 API 进入在线文档。
 
 ### 性能
-- 海报渲染结果缓存：同一 Builder 多次 `render()` 复用已渲染画布。
-- 字形栅格化缓存：同字号同字符只栅格化一次，文字密集场景显著减少重复开销。
-- 画布快路径：纯色 / 渐变背景走整块填充，不再逐像素兜底。
-- 验证码限流按身份区分（IP / uid）：多用户服务不再相互挤占全局限额。
+- **海报渲染结果缓存**（对齐 PHP 的 `$rendered` 语义）：同一 Builder 上重复 `render()` /
+  `save()` / `output()` 只渲染一次，任何元素 / 背景 / 尺寸变更使缓存失效。
+  示例里的多次输出调用（save×2 + output）实测合并为 1 次渲染（release，wall ~1.8s → ~0.25s），
+  输出逐字节一致。
+- **字形 / 整行渲染缓存**：同字号同文本只栅格化一次（覆盖分档：0 跳过、1 直写），
+  重复绘制（水印、描边艺术字）与旋转重复场景显著提速；命中路径与逐字形绘制逐字节一致（有哨兵测试）。
+- **画布快路径**：`blend_pixel` 整数 alpha 判定（0 跳过 / 255 直接拷贝）+ 行切片处理，
+  减少热点循环的逐像素边界检查；半透明仍为标量 f32（代码内 `ponytail:` 标注天花板）。
+- 清理脚手架：字体缓存改用 `Entry` API，消除两处 `expect()` panic 分支。
 
 ## [1.0.0] - 2026-10-07
 
