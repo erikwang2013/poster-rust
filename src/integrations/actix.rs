@@ -23,7 +23,7 @@ use actix_web::http::header;
 use actix_web::{FromRequest, HttpRequest, HttpResponse, Responder};
 
 use crate::captcha::Answer;
-use crate::guard::Guard;
+use crate::guard::{Guard, client_identity};
 
 /// `Guard` 的 actix 提取器：从 `web::Data<Guard>` 取（未注册时 500）。
 impl FromRequest for Guard {
@@ -63,8 +63,18 @@ pub struct VerifyRequest {
 }
 
 /// `POST {path}/verify` → `{"pass": true|false}`。
-pub async fn captcha_verify(body: web::Json<VerifyRequest>, guard: Guard) -> impl Responder {
-    match guard.verify(&body.key, body.answer.clone()) {
+///
+/// 限流身份按请求派生（[`client_identity`]：`X-Forwarded-For` 第一段 → 对端 IP → `"unknown"`）。
+pub async fn captcha_verify(
+    req: HttpRequest,
+    body: web::Json<VerifyRequest>,
+    guard: Guard,
+) -> impl Responder {
+    let identity = client_identity(
+        req.headers().get("x-forwarded-for").and_then(|value| value.to_str().ok()),
+        req.peer_addr().map(|addr| addr.ip()),
+    );
+    match guard.verify_as(&body.key, body.answer.clone(), &identity) {
         Ok(pass) => HttpResponse::Ok().json(serde_json::json!({ "pass": pass })),
         Err(_) => HttpResponse::InternalServerError().finish(),
     }

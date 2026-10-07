@@ -20,15 +20,17 @@
 //! # }
 //! ```
 
+use std::net::SocketAddr;
+
 use axum::Json;
-use axum::extract::{FromRequestParts, Path, State};
-use axum::http::{StatusCode, header};
+use axum::extract::{ConnectInfo, Extension, FromRequestParts, Path, State};
+use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::Router;
 
 use crate::captcha::Answer;
-use crate::guard::Guard;
+use crate::guard::{Guard, client_identity};
 
 /// 应用状态需要提供的挂钩：返回 `Guard`（通常是一次 `Clone`）。
 pub trait GuardState {
@@ -74,11 +76,29 @@ pub struct VerifyRequest {
 }
 
 /// `POST {path}/verify` → `{"pass": true|false}`。
-pub async fn captcha_verify<S>(State(state): State<S>, Json(req): Json<VerifyRequest>) -> Response
+///
+/// 限流身份按请求派生（[`client_identity`]：`X-Forwarded-For` 第一段 → 对端 IP → `"unknown"`），
+/// 不再全站共用一个桶。对端 IP 依赖 `ConnectInfo`：路由需挂
+/// `into_make_service_with_connect_info::<SocketAddr>()`，否则退化为 `"unknown"`
+/// （所有请求一个桶，与旧行为等价，但不会放行无限量猜测）。
+///
+/// 连接信息写成 `Option<Extension<ConnectInfo<_>>>` 而不是 `Option<ConnectInfo<_>>`：
+/// axum 0.8 的 `Option<T>` 要求 `T: OptionalFromRequestParts`，而 `ConnectInfo` 没实现它
+/// （`Extension` 实现了），这样既不强制调用方开启 connect info，也能直接编译。
+pub async fn captcha_verify<S>(
+    State(state): State<S>,
+    headers: HeaderMap,
+    connect_info: Option<Extension<ConnectInfo<SocketAddr>>>,
+    Json(req): Json<VerifyRequest>,
+) -> Response
 where
     S: GuardState + Clone + Send + Sync + 'static,
 {
-    match state.guard().verify(&req.key, req.answer) {
+    let identity = client_identity(
+        headers.get("x-forwarded-for").and_then(|value| value.to_str().ok()),
+        connect_info.map(|Extension(info)| info.0.ip()),
+    );
+    match state.guard().verify_as(&req.key, req.answer, &identity) {
         Ok(pass) => Json(serde_json::json!({ "pass": pass })).into_response(),
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
