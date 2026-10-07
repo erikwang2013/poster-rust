@@ -17,6 +17,11 @@
 
 # 与 PHP 版对齐的忽略项（ruflo 脚手架）
 .swarm/
+.agents/
+.claude/
+.claude-flow/
+AGENTS.md
+CLAUDE.md
 .mcp.json
 ruvector.db
 vendor/
