@@ -41,7 +41,7 @@ serde_json = "1"
 thiserror = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 redis = { version = "0.27", optional = true, default-features = false }
-axum = { version = "0.8.9", optional = true, default-features = false }
+axum = { version = "0.8.9", optional = true, default-features = false, features = ["json", "query", "tokio", "http1"] }
 actix-web = { version = "4.15", optional = true, default-features = false }
 rocket = { version = "0.5.1", optional = true, default-features = false, features = ["json"] }
 poem = { version = "3.1.12", optional = true, default-features = false }
