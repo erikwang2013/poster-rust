@@ -1,14 +1,14 @@
 //! bee-rust 集成：`bee_router` 的路由器是 axum Router 的封装，
-//! 因此直接复用 axum 提取器与路由，只按 bee 的风格包一层路由组（`RouteGroup`）。
+//! 因此直接复用 axum 提取器与路由，只按 bee-rust 的风格包一层路由组（`RouteGroup`）。
 //!
 //! ```no_run
 //! # use std::sync::Arc;
-//! use poster::{Guard, captcha::CaptchaManager, integrations::bee};
+//! use poster::{Guard, captcha::CaptchaManager, integrations::bee_rust};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let guard = Guard::from_manager(Arc::new(CaptchaManager::new()?))?;
 //! let app = bee_router::Router::new()
-//!     .ns("/", |group| bee::register(group))
+//!     .ns("/", |group| bee_rust::register(group))
 //!     .with_state(guard);
 //! # Ok(())
 //! # }
@@ -32,7 +32,7 @@ where
 /// 生成路由组所需的 axum 状态挂钩：`impl GuardState for AppState`。
 pub use super::axum::GuardState as BeeGuardState;
 
-/// 便捷构造：把 `Guard` 直接作为状态构建 axum Router（bee 的 `build()` 产物同类型）。
+/// 便捷构造：把 `Guard` 直接作为状态构建 axum Router（bee-rust 的 `build()` 产物同类型）。
 pub fn router<S>(guard: Guard) -> axum::Router<S>
 where
     S: GuardState + Clone + Send + Sync + 'static,

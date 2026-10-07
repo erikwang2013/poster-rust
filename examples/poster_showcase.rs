@@ -11,7 +11,7 @@ use poster::assets;
 use poster::drivers::{LineOptions, OverlayOptions, TextOptions, TextAlign};
 use poster::poster::elements::{
     artistic_text::ArtisticTextElement, avatar::AvatarElement, calendar::CalendarElement,
-    chart::ChartElement, emoji::EmojiElement, emoticon::EmoticonElement, icon::IconElement,
+    chart::ChartElement, emoji::EmojiElement, emoticon::EmoticonElement,
     image::ImageElement, line::LineElement, qrcode::QrcodeElement, shape::ShapeElement,
     table::TableElement, text::TextElement, watermark::WatermarkElement,
 };
@@ -232,16 +232,17 @@ fn main() -> poster::Result<()> {
 
     // 图标 / 颜文字 / Emoji
     builder
-        .add_icon(
-            "heart",
-            IconElement {
-                x: 585,
-                y: 1262,        // 未提供 FontAwesome 字体时渲染为字面 "[heart]"
-                size: 20,
-                color: "#FF6B6B".into(),
+        // 图标位直接用项目宠物 Posty（本项目统一图标）；图标字体图标仍可用 add_icon()
+        .add_pet(ImageElement {
+            x: 572,
+            y: 1226,
+            style: OverlayOptions {
+                width: Some(56),
+                height: Some(48), // 保持 600:520 比例
                 ..Default::default()
             },
-        )
+            ..Default::default()
+        })
         .add_emoticon(
             "happy",
             EmoticonElement {

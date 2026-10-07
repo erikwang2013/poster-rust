@@ -26,23 +26,58 @@ poster-rust 是一个 Rust 图像工具包，只做两件事，并且做到够�
 
 ```
 poster-rust/
-├── src/
+├── src/                        # 51 个文件 / 约 8900 行
+│   ├── lib.rs                  # 导出 + 辅助函数（captcha_create / captcha_verify / poster_create）
 │   ├── captcha/                # 验证码模块：4 种类型 + 工厂 + 管理器 + 限流 + 轨迹校验
-│   ├── poster/                 # 海报模块：Builder + Template + 14 种元素（elements/）
-│   ├── drivers/                # 图像驱动：画布 / TTF 文字 / 颜色
-│   ├── storage/                # 验证数据存储：Memory / File / Redis
-│   ├── integrations/           # 框架集成：8 个（feature 门控）
-│   ├── guard.rs                # 原生 Guard 请求守卫（框架无关）
-│   ├── qrcode.rs               # 二维码（qrcode crate 封装）
-│   ├── config.rs               # 配置（键名对齐 PHP config/poster.php）
-│   └── assets.rs               # 内置素材：宠物 / 背景 / 默认字体
-├── assets/                     # pet.svg / pet.png / backgrounds / fonts
-├── tests/                      # 集成测试，目录结构与 src/ 镜像
-├── examples/                   # 可直接运行的示例（含 axum / actix 服务）
-└── docs/                       # 架构文档（Mermaid）
+│   │   ├── click.rs            #   点击验证（文字 / 11 种程序化图标目标）
+│   │   ├── rotate.rs           #   旋转验证（±5° 容差，圆周最短边折算）
+│   │   ├── slider.rs           #   滑块验证（square 矩形 / jigsaw 凹凸拼图，逐行对齐 PHP）
+│   │   └── manager.rs          #   CaptchaManager：生成 / 校验 / 出图（Send + Sync）
+│   ├── poster/                 # 海报模块
+│   │   ├── builder.rs          #   链式 PosterBuilder（14 个 add_* + 注册表 add）
+│   │   ├── template.rs         #   JSON 模板 + {{变量}} 替换 + 导出往返
+│   │   └── elements/           #   14 种元素渲染器（text/image/avatar/qrcode/…/emoticon）
+│   ├── drivers/                # 图像驱动：画布（image crate）/ TTF 文字（ab_glyph）/ 颜色
+│   ├── storage/                # 验证数据存储：Memory / File（原子写）/ Redis（feature）
+│   ├── integrations/           # 框架集成：axum / actix / rocket / poem / salvo / warp / bee_rust / ecat
+│   ├── guard.rs                # 原生 Guard 请求守卫（框架无关，接线期快速失败）
+│   ├── qrcode.rs               # 二维码（qrcode crate 封装，精确像素）
+│   ├── config.rs               # 配置（键名对齐 PHP config/poster.php，可 serde 序列化）
+│   ├── mascot.rs               # 项目宠物 Posty：NAME / TAGLINE / art() / greet()
+│   └── assets.rs               # 内置素材：宠物 / 6 张背景 / 默认字体（阿里巴巴普惠体）
+├── assets/                     # pet.svg（README 顶部与文档图标）/ pet.png / backgrounds / fonts
+├── tests/                      # 集成测试 8 套 / 147 用例，目录结构与 src/ 镜像
+├── examples/                   # 9 个可运行示例（含 axum / actix 服务、Social Preview 生成器）
+├── scripts/                    # gen-diagrams.py：生成 docs/ 下的中英 SVG 图
+└── docs/                       # 中英架构图（SVG）/ architecture.md / Social Preview / 赞赏码
 ```
 
+## 架构与设计
+
+分层依赖：上层只调用下层，替换存储或素材实现时业务代码零改动。
+
+### 系统架构设计
+
+![poster-rust 架构设计](docs/architecture-zh.svg)
+
+### 功能设计
+
+![poster-rust 功能设计](docs/feature-design-zh.svg)
+
+### 请求周期
+
+![poster-rust 请求周期](docs/request-flow-zh.svg)
+
+### 生命周期
+
+![poster-rust 生命周期](docs/lifecycle-zh.svg)
+
+> 图表由 `scripts/gen-diagrams.py` 生成（中英各一套，含项目宠物 Posty 与版权）。
+
 ## 功能
+
+poster-rust 提供 3 个辅助函数、原生 Guard 请求守卫与 8 个框架集成；核心零框架依赖，
+全部 feature 门控（`axum` / `actix` / `rocket` / `poem` / `salvo` / `warp` / `bee-rust` / `ecat` / `redis`）。
 
 ### 验证码（三种方式 + 随机切换）
 
@@ -88,13 +123,13 @@ cargo add poster-rust
 | feature | 说明 |
 |---------|------|
 | `axum` / `actix` / `rocket` / `poem` / `salvo` / `warp` | 对应框架集成（提取器 + 出图路由） |
-| `bee` | bee-rust 集成（含 `axum`） |
+| `bee-rust` | bee-rust 集成（含 `axum`，`bee_router`） |
 | `ecat` | e-cat 集成（含 `axum`） |
 | `redis` | Redis 验证码存储（分布式部署） |
 
 ```toml
 [dependencies]
-poster-rust = { version = "0.1", features = ["axum", "redis"] }
+poster-rust = { version = "1.0", features = ["axum", "redis"] }
 ```
 
 ## 使用说明
@@ -531,7 +566,7 @@ HttpServer::new(move || {
 同一套 `Guard`，各自提取器（Rocket `FromRequest` / Poem `FromRequest` / Salvo `Handler` / Warp filter / bee-rust（`bee_router`，axum 兼容）/ e-cat（axum 兼容））：
 
 ```toml
-poster-rust = { version = "0.1", features = ["rocket"] }   # 或 poem / salvo / warp / bee / ecat
+poster-rust = { version = "1.0", features = ["rocket"] }   # 或 poem / salvo / warp / bee-rust / ecat
 ```
 
 每个集成都提供请求守卫提取 + 出图路由（`GET {path}/{key} → image/png`，`Cache-Control: no-store`，等价 PHP 版 `captcha.route`）。可直接运行的示例见 [`examples/`](examples/)（`axum_captcha` / `actix_captcha` / `guard_native`）。
@@ -593,4 +628,6 @@ poster-rust 参照 [poster-php](https://github.com/erikwang2013/poster-php) 移�
 
 ## License
 
-MIT License — Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
+MIT License
+
+Copyright © 2026 erik <erik@erik.xyz> — https://erik.xyz

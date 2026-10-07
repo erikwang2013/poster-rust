@@ -22,8 +22,8 @@ pub mod salvo;
 #[cfg(feature = "warp")]
 pub mod warp;
 
-#[cfg(feature = "bee")]
-pub mod bee;
+#[cfg(feature = "bee-rust")]
+pub mod bee_rust;
 
 #[cfg(feature = "ecat")]
 pub mod ecat;

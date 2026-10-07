@@ -23,7 +23,6 @@
 use std::sync::{Arc, OnceLock};
 
 use captcha::{Answer, CaptchaBuilder, CaptchaManager};
-use poster::PosterBuilder;
 
 pub mod assets;
 pub mod captcha;
@@ -41,6 +40,7 @@ pub use config::PosterConfig;
 pub use drivers::{Font, ImageDriver};
 pub use error::{PosterError, Result};
 pub use guard::{CaptchaImage, Guard};
+pub use poster::{PosterBuilder, PosterTemplate};
 
 /// 进程级默认管理器（`captcha_create` / `captcha_verify` 之间共享同一存储，
 /// 对应 PHP 版 `StorageFactory` 的静态缓存语义）。

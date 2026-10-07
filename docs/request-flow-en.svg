@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 600" width="1160" height="600" role="img" aria-label="poster-rust Request Cycle">
+<defs>
+  <marker id="ah" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+    <path d="M0,0 L9,4 L0,8 z" fill="#2D3436"/>
+  </marker>
+</defs>
+<rect width="1160" height="600" fill="#FFFFFF"/>
+<text x="24" y="40" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="22" fill="#2D3436" font-weight="700" text-anchor="start" opacity="1.0">poster-rust Request Cycle</text><text x="24" y="66" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="15" fill="#8A6A5B" font-weight="400" text-anchor="start" opacity="1.0">One HTTP request: extract guard → generate / serve / verify → respond</text>
+<rect x="60" y="96" width="330" height="76" rx="10" fill="#F1F5F8" stroke="#E4EBF0" stroke-width="1.5"/><text x="225" y="128" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="14" fill="#2D3436" font-weight="700" text-anchor="middle" opacity="1.0">HTTP request</text><text x="225" y="148" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#8A6A5B" font-weight="400" text-anchor="middle" opacity="1.0">GET /captcha/new · GET /captcha/{key} · POST /captch</text><text x="225" y="161" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#8A6A5B" font-weight="400" text-anchor="middle" opacity="1.0">a/verify</text><line x1="390" y1="134" x2="440" y2="134" stroke="#8A6A5B" stroke-width="1.8" marker-end="url(#ah)"/><rect x="440" y="96" width="330" height="76" rx="10" fill="#F1F5F8" stroke="#E4EBF0" stroke-width="1.5"/><text x="605" y="128" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="14" fill="#2D3436" font-weight="700" text-anchor="middle" opacity="1.0">Framework extractor</text><text x="605" y="148" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#8A6A5B" font-weight="400" text-anchor="middle" opacity="1.0">axum / actix-web / rocket / poem / salvo / warp / be</text><text x="605" y="161" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#8A6A5B" font-weight="400" text-anchor="middle" opacity="1.0">e-rust / e-cat</text><line x1="770" y1="134" x2="820" y2="134" stroke="#8A6A5B" stroke-width="1.8" marker-end="url(#ah)"/><rect x="820" y="96" width="330" height="76" rx="10" fill="#F1F5F8" stroke="#E4EBF0" stroke-width="1.5"/><text x="985" y="128" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="14" fill="#2D3436" font-weight="700" text-anchor="middle" opacity="1.0">Guard</text><text x="985" y="148" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#8A6A5B" font-weight="400" text-anchor="middle" opacity="1.0">built at wiring (storage probe fails fast) → cloned </text><text x="985" y="161" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#8A6A5B" font-weight="400" text-anchor="middle" opacity="1.0">per request (two atomic bumps)</text><rect x="60" y="232" width="245" height="250" rx="10" fill="#E7F7F5" stroke="#4ECDC4" stroke-width="1.5"/><text x="182" y="262" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="14" fill="#2D3436" font-weight="700" text-anchor="middle" opacity="1.0">Generate</text><rect x="76" y="272" width="213" height="36" rx="7" fill="#FFFDF8" stroke="#E4EBF0" stroke-width="1.5"/><text x="182" y="290" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">create(kind)</text><rect x="76" y="318" width="213" height="36" rx="7" fill="#FFFDF8" stroke="#E4EBF0" stroke-width="1.5"/><text x="182" y="336" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">canvas + targets /</text><text x="182" y="348" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">notch / rotation</text><rect x="76" y="364" width="213" height="36" rx="7" fill="#FFFDF8" stroke="#E4EBF0" stroke-width="1.5"/><text x="182" y="382" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">PNG persisted to</text><text x="182" y="394" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">Storage (TTL)</text><rect x="76" y="410" width="213" height="36" rx="7" fill="#FFFDF8" stroke="#E4EBF0" stroke-width="1.5"/><text x="182" y="428" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">returns CaptchaResult</text><text x="182" y="440" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">JSON</text><line x1="305" y1="357" x2="325" y2="357" stroke="#8A6A5B" stroke-width="1.8" marker-end="url(#ah)"/><rect x="325" y="232" width="245" height="250" rx="10" fill="#E8F3F9" stroke="#45B7D1" stroke-width="1.5"/><text x="447" y="262" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="14" fill="#2D3436" font-weight="700" text-anchor="middle" opacity="1.0">Serve image</text><rect x="341" y="272" width="213" height="36" rx="7" fill="#FFFDF8" stroke="#E4EBF0" stroke-width="1.5"/><text x="447" y="290" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">GET {path}/{key}</text><rect x="341" y="318" width="213" height="36" rx="7" fill="#FFFDF8" stroke="#E4EBF0" stroke-width="1.5"/><text x="447" y="336" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">image_bytes(key)</text><rect x="341" y="364" width="213" height="36" rx="7" fill="#FFFDF8" stroke="#E4EBF0" stroke-width="1.5"/><text x="447" y="382" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">image/png</text><rect x="341" y="410" width="213" height="36" rx="7" fill="#FFFDF8" stroke="#E4EBF0" stroke-width="1.5"/><text x="447" y="428" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">Cache-Control:</text><text x="447" y="440" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">no-store</text><line x1="570" y1="357" x2="590" y2="357" stroke="#8A6A5B" stroke-width="1.8" marker-end="url(#ah)"/><rect x="590" y="232" width="245" height="250" rx="10" fill="#FFECEC" stroke="#FF6B6B" stroke-width="1.5"/><text x="712" y="262" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="14" fill="#2D3436" font-weight="700" text-anchor="middle" opacity="1.0">Verify</text><rect x="606" y="272" width="213" height="36" rx="7" fill="#FFFDF8" stroke="#E4EBF0" stroke-width="1.5"/><text x="712" y="290" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">verify(key, answer)</text><rect x="606" y="318" width="213" height="36" rx="7" fill="#FFFDF8" stroke="#E4EBF0" stroke-width="1.5"/><text x="712" y="336" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">rate limit → storage →</text><text x="712" y="348" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">atomic attempt count</text><rect x="606" y="364" width="213" height="36" rx="7" fill="#FFFDF8" stroke="#E4EBF0" stroke-width="1.5"/><text x="712" y="382" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">tolerance check (18px</text><text x="712" y="394" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">/ ±5° / ±4px)</text><rect x="606" y="410" width="213" height="36" rx="7" fill="#FFFDF8" stroke="#E4EBF0" stroke-width="1.5"/><text x="712" y="428" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">pass → delete key;</text><text x="712" y="440" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">fail → retry</text><line x1="835" y1="357" x2="855" y2="357" stroke="#8A6A5B" stroke-width="1.8" marker-end="url(#ah)"/><rect x="855" y="232" width="245" height="250" rx="10" fill="#FFF8E1" stroke="#E8B93C" stroke-width="1.5"/><text x="977" y="262" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="14" fill="#2D3436" font-weight="700" text-anchor="middle" opacity="1.0">Response</text><rect x="871" y="272" width="213" height="36" rx="7" fill="#FFFDF8" stroke="#E4EBF0" stroke-width="1.5"/><text x="977" y="290" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">JSON / PNG</text><rect x="871" y="318" width="213" height="36" rx="7" fill="#FFFDF8" stroke="#E4EBF0" stroke-width="1.5"/><text x="977" y="336" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">one-shot key</text><rect x="871" y="364" width="213" height="36" rx="7" fill="#FFFDF8" stroke="#E4EBF0" stroke-width="1.5"/><text x="977" y="382" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">≤3 attempts</text><rect x="871" y="410" width="213" height="36" rx="7" fill="#FFFDF8" stroke="#E4EBF0" stroke-width="1.5"/><text x="977" y="428" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="10" fill="#2D3436" font-weight="400" text-anchor="middle" opacity="1.0">TTL 300s</text><line x1="225" y1="172" x2="225" y2="232" stroke="#8A6A5B" stroke-width="1.8" marker-end="url(#ah)"/><line x1="448" y1="172" x2="448" y2="232" stroke="#8A6A5B" stroke-width="1.8" marker-end="url(#ah)"/><line x1="682" y1="172" x2="682" y2="232" stroke="#8A6A5B" stroke-width="1.8" marker-end="url(#ah)"/><line x1="1080" y1="172" x2="1080" y2="232" stroke="#8A6A5B" stroke-width="1.8" marker-end="url(#ah)"/>
+<line x1="24" y1="556" x2="1136" y2="556" stroke="#E4EBF0" stroke-width="1.5"/>
+<text x="24" y="580" font-family="system-ui,-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif" font-size="12" fill="#8A6A5B" font-weight="400" text-anchor="start" opacity="1.0">Copyright © 2026 erik &lt;erik@erik.xyz&gt; — https://erik.xyz</text>
+<g transform="translate(1004,458) scale(0.36)" opacity="0.95">
+  
+  
+
+  <!-- 地面投影 -->
+  <ellipse cx="150" cy="234" rx="64" ry="10" fill="#E4EBF0"/>
+  <!-- 脚 -->
+  <ellipse cx="126" cy="210" rx="15" ry="10" fill="#FFFDF8" stroke="#2D3436" stroke-width="3"/>
+  <ellipse cx="174" cy="210" rx="15" ry="10" fill="#FFFDF8" stroke="#2D3436" stroke-width="3"/>
+  <!-- 触角 -->
+  <path d="M150 60V40" stroke="#2D3436" stroke-width="3.5" stroke-linecap="round"/>
+  <circle cx="150" cy="31" r="8" fill="#FF6B6B" stroke="#2D3436" stroke-width="3"/>
+
+  <!-- 左手道具：二维码卡片 -->
+  <g>
+    <rect x="4" y="146" width="58" height="58" rx="12" fill="#FFFFFF" stroke="#2D3436" stroke-width="3"/>
+    <g fill="#2D3436">
+      <rect x="14" y="156" width="14" height="14"/><rect x="38" y="156" width="14" height="14"/>
+      <rect x="14" y="180" width="14" height="14"/>
+      <rect x="34" y="184" width="5" height="5"/><rect x="43" y="176" width="5" height="5"/>
+      <rect x="34" y="194" width="5" height="5"/><rect x="44" y="190" width="10" height="6"/>
+      <rect x="48" y="176" width="6" height="6"/>
+    </g>
+    <g fill="#FFFFFF">
+      <rect x="18" y="160" width="6" height="6"/><rect x="42" y="160" width="6" height="6"/>
+      <rect x="18" y="184" width="6" height="6"/>
+    </g>
+  </g>
+
+  <!-- 右手道具：滑块拼图 -->
+  <g transform="translate(10,0)">
+    <path d="M226 124a8 8 0 0 1 8-8h6a9 9 0 0 0 18 0h4a8 8 0 0 1 8 8v6a9 9 0 0 1 0 18v4a8 8 0 0 1-8 8h-6a9 9 0 0 1-18 0h-4a8 8 0 0 1-8-8v-6a9 9 0 0 0 0-18z"
+          fill="#4ECDC4" stroke="#2D3436" stroke-width="3" stroke-linejoin="round"/>
+    <circle cx="248" cy="134" r="4" fill="#FFFFFF" opacity="0.75"/>
+  </g>
+
+  <!-- 手臂 -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M94 154Q72 160 66 170" stroke="#2D3436" stroke-width="13"/>
+    <path d="M94 154Q72 160 66 170" stroke="#FFFDF8" stroke-width="7"/>
+    <path d="M206 154Q228 160 234 170" stroke="#2D3436" stroke-width="13"/>
+    <path d="M206 154Q228 160 234 170" stroke="#FFFDF8" stroke-width="7"/>
+  </g>
+
+  <!-- 身体（海报本体） -->
+  <rect x="84" y="52" width="132" height="152" rx="28" fill="#FFFDF8"/>
+  <path d="M112 52H188A28 28 0 0 1 216 80V92H84V80A28 28 0 0 1 112 52Z" fill="#FF6B6B"/>
+  <rect x="98" y="64" width="52" height="5" rx="2.5" fill="#FFFFFF" opacity="0.9"/>
+  <rect x="98" y="75" width="32" height="5" rx="2.5" fill="#FFFFFF" opacity="0.6"/>
+  <rect x="84" y="52" width="132" height="152" rx="28" fill="none" stroke="#2D3436" stroke-width="3.5"/>
+
+  <!-- 表情 -->
+  <g>
+    <ellipse cx="110" cy="146" rx="11" ry="7" fill="#FFB4B4" opacity="0.75"/>
+    <ellipse cx="190" cy="146" rx="11" ry="7" fill="#FFB4B4" opacity="0.75"/>
+    <circle cx="126" cy="128" r="10" fill="#2D3436"/>
+    <circle cx="174" cy="128" r="10" fill="#2D3436"/>
+    <circle cx="130" cy="124" r="3.2" fill="#FFFFFF"/>
+    <circle cx="178" cy="124" r="3.2" fill="#FFFFFF"/>
+    <path d="M139 150Q150 161 161 150" fill="none" stroke="#2D3436" stroke-width="3.2" stroke-linecap="round"/>
+  </g>
+
+  <!-- 海报排版占位线 -->
+  <rect x="114" y="172" width="72" height="8" rx="4" fill="#FFE3E3"/>
+  <rect x="114" y="186" width="48" height="8" rx="4" fill="#E4EBF0"/>
+
+  <!-- 点缀 -->
+  <g fill="#FFD166">
+    <path d="M0-9 2.6-2.6 9 0 2.6 2.6 0 9-2.6 2.6-9 0-2.6-2.6Z" transform="translate(262,84) scale(0.85)"/>
+    <path d="M0-9 2.6-2.6 9 0 2.6 2.6 0 9-2.6 2.6-9 0-2.6-2.6Z" transform="translate(34,120) scale(0.7)"/>
+    <path d="M0-9 2.6-2.6 9 0 2.6 2.6 0 9-2.6 2.6-9 0-2.6-2.6Z" transform="translate(238,40) scale(0.5)"/>
+  </g>
+</g>
+</svg>

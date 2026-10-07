@@ -1,6 +1,6 @@
 [package]
 name = "poster-rust"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Rust captcha (click/rotate/slider) and poster generation — framework-agnostic core with axum and actix-web integrations."
@@ -25,7 +25,7 @@ rocket = ["dep:rocket"]
 poem = ["dep:poem"]
 salvo = ["dep:salvo"]
 warp = ["dep:warp"]
-bee = ["dep:bee_router", "axum"]
+bee-rust = ["dep:bee_router", "axum"]
 ecat = ["axum"]
 redis = ["dep:redis"]
 

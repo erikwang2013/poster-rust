@@ -1,6 +1,9 @@
 # poster-rust 架构设计与业务逻辑图
 
-> 所有图表使用 Mermaid 语法，GitHub / GitLab 原生渲染。
+> 配图（SVG，中英各一套，由 `scripts/gen-diagrams.py` 生成）：
+> [架构设计](architecture-zh.svg) · [功能设计](feature-design-zh.svg) ·
+> [请求周期](request-flow-zh.svg) · [生命周期](lifecycle-zh.svg)（英文版把 `-zh` 换成 `-en`）。
+> 本文档正文使用 Mermaid 语法，GitHub / GitLab 原生渲染。
 > 本文档由 PHP 版 `docs/architecture.md` 改写而来，模块与驱动替换为 Rust 侧实现。
 
 ---
