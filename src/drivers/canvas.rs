@@ -7,6 +7,7 @@
 //! - `save()`/`output()` 的质量缺省取配置：PNG 用 `poster.png_compression`，其余用 `image.quality`
 
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::path::{Path, PathBuf};
 
 use image::codecs::gif::GifEncoder;
@@ -101,11 +102,14 @@ impl ImageDriver {
 
     /// 取（并缓存）指定路径的字体。
     pub fn font(&mut self, path: &Path) -> Result<&Font> {
-        if !self.fonts.contains_key(path) {
-            let font = Font::load(path)?;
-            self.fonts.insert(path.to_path_buf(), font);
-        }
-        Ok(self.fonts.get(path).expect("刚插入"))
+        // entry 一次查找：缺则加载插入，命中直接借用（无 panic 分支）
+        Ok(match self.fonts.entry(path.to_path_buf()) {
+            Entry::Occupied(e) => e.into_mut(),
+            Entry::Vacant(e) => {
+                let font = Font::load(path)?;
+                e.insert(font)
+            }
+        })
     }
 
     /// 解析文字选项对应的字体路径（显式 > 配置 > 随包默认）。
@@ -179,10 +183,13 @@ impl ImageDriver {
     pub fn text(&mut self, text: &str, x: f32, y: f32, opts: &TextOptions) -> Result<()> {
         let font_path = Self::resolve_font_path(opts.font.as_deref());
         let Self { img, fonts } = self;
-        if !fonts.contains_key(&font_path) {
-            fonts.insert(font_path.clone(), Font::load(&font_path)?);
-        }
-        let font = fonts.get(&font_path).expect("刚插入");
+        let font = match fonts.entry(font_path) {
+            Entry::Occupied(e) => e.into_mut(),
+            Entry::Vacant(e) => {
+                let font = Font::load(e.key())?;
+                e.insert(font)
+            }
+        };
 
         let rgba = color::parse(&opts.color)?;
         let line_height = opts
@@ -512,79 +519,190 @@ fn guard_size(width: u32, height: u32) -> Result<()> {
     Ok(())
 }
 
-/// src-over 混合单个像素。
-fn blend_pixel(dst: &mut Rgba<u8>, src: Rgba<u8>) {
-    let sa = src.0[3] as f32 / 255.0;
-    if sa <= 0.0 {
+/// src-over 混合单个像素（`dst`/`src` 都是 4 字节 RGBA）。
+///
+/// 整数判定等价于原浮点判定：`alpha/255 <= 0` 仅当 alpha == 0，
+/// `alpha/255 >= 1` 仅当 alpha == 255（254/255 严格小于 1）。
+// ponytail: 半透明像素仍是标量 f32（每像素 3 次除/乘/round），未向量化
+// （std::simd 未稳定）；若半透明大图叠加成为瓶颈，再考虑整数定点混合，
+// 但那会改变舍入口径、需要重新对齐 PHP 的逐像素结果。
+#[inline]
+fn blend_pixel(dst: &mut [u8], src: &[u8]) {
+    let a = src[3];
+    if a == 0 {
         return;
     }
-    if sa >= 1.0 {
-        *dst = src;
+    if a == 255 {
+        dst.copy_from_slice(src);
         return;
     }
-    let da = dst.0[3] as f32 / 255.0;
+    let sa = a as f32 / 255.0;
+    let da = dst[3] as f32 / 255.0;
     let out_a = sa + da * (1.0 - sa);
     for i in 0..3 {
-        let s = src.0[i] as f32;
-        let d = dst.0[i] as f32;
-        dst.0[i] = ((s * sa + d * da * (1.0 - sa)) / out_a).round() as u8;
+        dst[i] = ((src[i] as f32 * sa + dst[i] as f32 * da * (1.0 - sa)) / out_a).round() as u8;
     }
-    dst.0[3] = (out_a * 255.0).round() as u8;
+    dst[3] = (out_a * 255.0).round() as u8;
 }
 
-/// 以 `coverage`（0-1）缩放 alpha 后混合。
-fn blend_pixel_coverage(img: &mut RgbaImage, x: i64, y: i64, color: Rgba<u8>, coverage: f32) {
-    if x < 0 || y < 0 || x as u32 >= img.width() || y as u32 >= img.height() || coverage <= 0.0 {
+/// 以 `coverage`（0-1）缩放 alpha 后混合单个像素。
+#[inline]
+fn blend_coverage(dst: &mut [u8], color: &[u8; 4], coverage: f32) {
+    if coverage <= 0.0 {
         return;
     }
-    let mut c = color;
-    c.0[3] = (c.0[3] as f32 * coverage.clamp(0.0, 1.0)).round() as u8;
-    blend_pixel(img.get_pixel_mut(x as u32, y as u32), c);
+    let a = (color[3] as f32 * coverage.clamp(0.0, 1.0)).round() as u8;
+    if a == 0 {
+        return;
+    }
+    blend_pixel(dst, &[color[0], color[1], color[2], a]);
+}
+
+/// 整段（长度是 4 的倍数）用同一颜色混合：全透明跳过、全不透明整段覆盖，其余逐像素。
+#[inline]
+fn blend_span(span: &mut [u8], color: &[u8; 4]) {
+    match color[3] {
+        0 => {}
+        255 => {
+            for p in span.chunks_exact_mut(4) {
+                p.copy_from_slice(color);
+            }
+        }
+        _ => {
+            for p in span.chunks_exact_mut(4) {
+                blend_pixel(p, color);
+            }
+        }
+    }
 }
 
 /// 填充矩形 `[x, x+w) × [y, y+h)`。
 fn fill_rect(img: &mut RgbaImage, x: i64, y: i64, w: i64, h: i64, color: Rgba<u8>) {
-    for py in y.max(0)..(y + h).min(img.height() as i64) {
-        for px in x.max(0)..(x + w).min(img.width() as i64) {
-            blend_pixel(img.get_pixel_mut(px as u32, py as u32), color);
-        }
+    if color.0[3] == 0 {
+        return;
+    }
+    let (x0, x1) = (x.max(0), (x + w).min(img.width() as i64));
+    let (y0, y1) = (y.max(0), (y + h).min(img.height() as i64));
+    if x1 <= x0 || y1 <= y0 {
+        return;
+    }
+    let stride = img.width() as usize * 4;
+    let buf: &mut [u8] = img;
+    let (a, b) = (x0 as usize * 4, x1 as usize * 4);
+    for py in y0..y1 {
+        let start = py as usize * stride;
+        blend_span(&mut buf[start + a..start + b], &color.0);
     }
 }
 
 /// 圆角矩形填充：两个交叉矩形 + 四角圆（SDF 抗锯齿）。
 fn fill_rounded_rect(img: &mut RgbaImage, x: f32, y: f32, w: f32, h: f32, radius: f32, color: Rgba<u8>) {
+    if color.0[3] == 0 {
+        return;
+    }
     let r = radius.min(w / 2.0).min(h / 2.0);
     let (x0, y0, x1, y1) = (x, y, x + w, y + h);
-    for py in (y0.floor().max(0.0) as i64)..((y1.ceil()).min(img.height() as f32) as i64) {
-        for px in (x0.floor().max(0.0) as i64)..((x1.ceil()).min(img.width() as f32) as i64) {
-            let (cx, cy) = (px as f32 + 0.5, py as f32 + 0.5);
+    let px0 = x0.floor().max(0.0) as i64;
+    let px1 = (x1.ceil()).min(img.width() as f32) as i64;
+    let py0 = y0.floor().max(0.0) as i64;
+    let py1 = (y1.ceil()).min(img.height() as f32) as i64;
+    if px1 <= px0 || py1 <= py0 {
+        return;
+    }
+    // 由两条中线夹出的整块内部：dx = dy = 0 → coverage = (r+0.5).clamp(0,1)，
+    // 仅当 r >= 0.5 时恒为 1（等价于直接混合原色），否则退回逐像素。
+    // ponytail: 只抽了这个正十字块；左右两条 r 宽的直边仍逐像素算 SDF，
+    // 想再快可按行解出 coverage<1 的 x 上界（同 fill_ellipse 的 inner）。
+    let inner = if r >= 0.5 {
+        let a = ((x0 + r - 0.5).ceil() as i64).max(px0);
+        let b = (((x1 - r - 0.5).floor() + 1.0) as i64).min(px1);
+        let c = ((y0 + r - 0.5).ceil() as i64).max(py0);
+        let d = (((y1 - r - 0.5).floor() + 1.0) as i64).min(py1);
+        (b > a && d > c).then_some((a, b, c, d))
+    } else {
+        None
+    };
+    let stride = img.width() as usize * 4;
+    let buf: &mut [u8] = img;
+    for py in py0..py1 {
+        let row = &mut buf[py as usize * stride..][..stride];
+        let cy = py as f32 + 0.5;
+        let dy = (y0 + r - cy).max(cy - (y1 - r)).max(0.0);
+        let coverage = |px: i64| {
+            let cx = px as f32 + 0.5;
             let dx = (x0 + r - cx).max(cx - (x1 - r)).max(0.0);
-            let dy = (y0 + r - cy).max(cy - (y1 - r)).max(0.0);
-            let dist = (dx * dx + dy * dy).sqrt();
-            let coverage = (r - dist + 0.5).clamp(0.0, 1.0);
-            blend_pixel_coverage(img, px, py, color, coverage);
+            (r - (dx * dx + dy * dy).sqrt() + 0.5).clamp(0.0, 1.0)
+        };
+        // 内部块整段浅写，其余像素照旧算 SDF
+        let (a, b) = match inner {
+            Some((a, b, c, d)) if py >= c && py < d => (a, b),
+            _ => (px0, px0),
+        };
+        for px in px0..a {
+            let i = px as usize * 4;
+            blend_coverage(&mut row[i..i + 4], &color.0, coverage(px));
+        }
+        blend_span(&mut row[a as usize * 4..b as usize * 4], &color.0);
+        for px in b.max(px0)..px1 {
+            let i = px as usize * 4;
+            blend_coverage(&mut row[i..i + 4], &color.0, coverage(px));
         }
     }
 }
 
 /// 填充椭圆（`filled = false` 时画轮廓）。
 fn fill_ellipse(img: &mut RgbaImage, cx: f32, cy: f32, rx: f32, ry: f32, color: Rgba<u8>, filled: bool) {
-    if rx <= 0.0 || ry <= 0.0 {
+    if rx <= 0.0 || ry <= 0.0 || color.0[3] == 0 {
         return;
     }
-    let (x0, x1) = ((cx - rx - 1.0).floor().max(0.0) as i64, (cx + rx + 1.0).ceil());
-    let (y0, y1) = ((cy - ry - 1.0).floor().max(0.0) as i64, (cy + ry + 1.0).ceil());
-    for py in y0..(y1.min(img.height() as f32) as i64) {
-        for px in x0..(x1.min(img.width() as f32) as i64) {
-            let (dx, dy) = (px as f32 + 0.5 - cx, py as f32 + 0.5 - cy);
-            let norm = ((dx / rx).powi(2) + (dy / ry).powi(2)).sqrt();
-            let coverage = if filled {
-                1.0 - smoothstep_edge(norm, 1.0, 2.0 / rx.max(ry))
-            } else {
-                let band = smoothstep_edge(norm, 1.0, 2.0 / rx.max(ry));
-                band * (1.0 - smoothstep_edge(norm, 1.0 + 2.0 / rx.min(ry), 2.0 / rx.min(ry)))
-            };
-            blend_pixel_coverage(img, px, py, color, coverage);
+    let x0 = (cx - rx - 1.0).floor().max(0.0) as i64;
+    let x1 = (cx + rx + 1.0).ceil().min(img.width() as f32) as i64;
+    let y0 = (cy - ry - 1.0).floor().max(0.0) as i64;
+    let y1 = (cy + ry + 1.0).ceil().min(img.height() as f32) as i64;
+    if x1 <= x0 || y1 <= y0 {
+        return;
+    }
+    let (max_axis, min_axis) = (rx.max(ry), rx.min(ry));
+    // norm <= t 时 smoothstep 恒为 0：filled 下 coverage 恒为 1（等价直接混合原色），
+    // 轮廓下恒为 0（整段跳过）。
+    // ponytail: 抗锯齿边带仍是逐像素（每像素一次 sqrt + 两次 smoothstep），
+    // 想再快就对边带再做一次「按行解 x 区间」的抽段。
+    let t = 1.0 - 1.0 / max_axis;
+    let coverage = |px: i64, py: i64| {
+        let (dx, dy) = (px as f32 + 0.5 - cx, py as f32 + 0.5 - cy);
+        let norm = ((dx / rx).powi(2) + (dy / ry).powi(2)).sqrt();
+        if filled {
+            1.0 - smoothstep_edge(norm, 1.0, 2.0 / max_axis)
+        } else {
+            let band = smoothstep_edge(norm, 1.0, 2.0 / max_axis);
+            band * (1.0 - smoothstep_edge(norm, 1.0 + 2.0 / min_axis, 2.0 / min_axis))
+        }
+    };
+    let stride = img.width() as usize * 4;
+    let buf: &mut [u8] = img;
+    for py in y0..y1 {
+        let row = &mut buf[py as usize * stride..][..stride];
+        // 全覆盖段：|dx| <= rx*sqrt(t^2 - (dy/ry)^2) 记作 hw，判据再内缩 1 像素
+        // 留出浮点余量（hw 的 f32 误差 ~1e-4 px，远小于 1），故 px ∈ [cx-hw+0.5, cx+hw-1.5]。
+        let inner = {
+            let dy = py as f32 + 0.5 - cy;
+            let u = t * t - (dy / ry) * (dy / ry);
+            let hw = if u > 0.0 { u.sqrt() * rx } else { 0.0 };
+            let a = ((cx - hw + 0.5).ceil() as i64).max(x0);
+            let b = ((cx + hw - 1.5).floor() as i64 + 1).min(x1);
+            if hw > 0.0 && b > a { Some((a, b)) } else { None }
+        };
+        let (a, b) = inner.unwrap_or((x0, x0));
+        for px in x0..a {
+            let i = px as usize * 4;
+            blend_coverage(&mut row[i..i + 4], &color.0, coverage(px, py));
+        }
+        if filled {
+            blend_span(&mut row[a as usize * 4..b as usize * 4], &color.0);
+        }
+        for px in b.max(x0)..x1 {
+            let i = px as usize * 4;
+            blend_coverage(&mut row[i..i + 4], &color.0, coverage(px, py));
         }
     }
 }
@@ -596,15 +714,19 @@ fn smoothstep_edge(v: f32, edge: f32, width: f32) -> f32 {
 
 /// 扫描线填充多边形（非零环绕；点按像素中心采样）。
 fn fill_polygon(img: &mut RgbaImage, points: &[(f32, f32)], color: Rgba<u8>) {
-    if points.len() < 3 {
+    if points.len() < 3 || color.0[3] == 0 {
         return;
     }
+    let width = img.width() as i64;
     let y_min = points.iter().map(|p| p.1).fold(f32::INFINITY, f32::min).floor().max(0.0);
     let y_max = points.iter().map(|p| p.1).fold(f32::NEG_INFINITY, f32::max).ceil();
     let y_max = y_max.min(img.height() as f32) as i64;
+    let stride = img.width() as usize * 4;
+    let buf: &mut [u8] = img;
+    let mut spans: Vec<f32> = Vec::new();
     for py in y_min as i64..y_max {
         let sy = py as f32 + 0.5;
-        let mut spans: Vec<f32> = Vec::new();
+        spans.clear();
         for i in 0..points.len() {
             let (x0, y0) = points[i];
             let (x1, y1) = points[(i + 1) % points.len()];
@@ -613,28 +735,60 @@ fn fill_polygon(img: &mut RgbaImage, points: &[(f32, f32)], color: Rgba<u8>) {
             }
         }
         spans.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let row = &mut buf[py as usize * stride..][..stride];
         for pair in spans.chunks(2) {
-            if let [xa, xb] = pair {
-                for px in (xa.floor().max(0.0) as i64)..(xb.ceil().min(img.width() as f32) as i64) {
-                    let coverage = (xb - (px as f32 + 0.5)).min((px as f32 + 0.5) - xa).min(0.5) + 0.5;
-                    blend_pixel_coverage(img, px, py, color, coverage.clamp(0.0, 1.0));
+            if let &[xa, xb] = pair {
+                let lo = (xa.floor().max(0.0) as i64).clamp(0, width);
+                let hi = (xb.ceil().min(width as f32) as i64).clamp(lo, width);
+                if hi <= lo {
+                    continue;
+                }
+                // [i0, i1)：两端各让开半个像素后 coverage 恒为 1 → 直接混合原色。
+                // 边界像素（可能落在让开的部分）仍用原公式，浮点舍入只影响归属不影响结果。
+                let i0 = (xa.ceil() as i64).clamp(lo, hi);
+                let i1 = (((xb - 1.0).floor() as i64) + 1).clamp(i0, hi);
+                for px in lo..i0 {
+                    let i = px as usize * 4;
+                    blend_coverage(&mut row[i..i + 4], &color.0, span_coverage(xa, xb, px));
+                }
+                blend_span(&mut row[i0 as usize * 4..i1 as usize * 4], &color.0);
+                for px in i1..hi {
+                    let i = px as usize * 4;
+                    blend_coverage(&mut row[i..i + 4], &color.0, span_coverage(xa, xb, px));
                 }
             }
         }
     }
 }
 
+/// 扫描线跨度在 `px` 处的覆盖率（0-1）。
+fn span_coverage(xa: f32, xb: f32, px: i64) -> f32 {
+    let c = px as f32 + 0.5;
+    ((xb - c).min(c - xa).min(0.5) + 0.5).clamp(0.0, 1.0)
+}
+
 /// 粗线：段距离 + 圆头抗锯齿。
+// ponytail: 仍是逐像素算距离；线段内部（dist <= half-0.5）没有抽段，粗线场景够用，
+// 若要更快按行解 |x - 投影| 的范围再整段写（同 fill_polygon 的做法）。
 fn draw_thick_line(img: &mut RgbaImage, a: (f32, f32), b: (f32, f32), width: f32, color: Rgba<u8>) {
+    if color.0[3] == 0 {
+        return;
+    }
     let half = (width / 2.0).max(0.5);
-    let (x0, x1) = ((a.0.min(b.0) - half - 1.0).floor().max(0.0), (a.0.max(b.0) + half + 1.0).ceil());
-    let (y0, y1) = ((a.1.min(b.1) - half - 1.0).floor().max(0.0), (a.1.max(b.1) + half + 1.0).ceil());
-    for py in y0 as i64..(y1.min(img.height() as f32) as i64) {
-        for px in x0 as i64..(x1.min(img.width() as f32) as i64) {
-            let (cx, cy) = (px as f32 + 0.5, py as f32 + 0.5);
-            let dist = point_segment_distance((cx, cy), a, b);
+    let x0 = (a.0.min(b.0) - half - 1.0).floor().max(0.0) as i64;
+    let x1 = (a.0.max(b.0) + half + 1.0).ceil().min(img.width() as f32) as i64;
+    let y0 = (a.1.min(b.1) - half - 1.0).floor().max(0.0) as i64;
+    let y1 = (a.1.max(b.1) + half + 1.0).ceil().min(img.height() as f32) as i64;
+    let stride = img.width() as usize * 4;
+    let buf: &mut [u8] = img;
+    for py in y0..y1 {
+        let row = &mut buf[py as usize * stride..][..stride];
+        let cy = py as f32 + 0.5;
+        for px in x0..x1 {
+            let i = px as usize * 4;
+            let dist = point_segment_distance((px as f32 + 0.5, cy), a, b);
             let coverage = (half + 0.5 - dist).clamp(0.0, 1.0);
-            blend_pixel_coverage(img, px, py, color, coverage);
+            blend_coverage(&mut row[i..i + 4], &color.0, coverage);
         }
     }
 }
@@ -660,37 +814,65 @@ fn rounded_image(img: &RgbaImage, radius: u32) -> RgbaImage {
     if r < 1.0 {
         return out;
     }
+    // 只有两段角带（x < r 或 x >= w-r）的 dx 可能非 0；中段 dx = 0 而 dy <= r-0.5，
+    // 覆盖率恒为 (r-dy+0.5).clamp(0,1) == 1 → 乘 alpha 是恒等变换，可整段跳过。
+    // ponytail: 角带内仍逐像素算 sqrt；要更快就按行解出 coverage<1 的 x 上界再抽段。
+    let rn = r as i64;
+    let bands = [(0i64, rn), ((w as i64 - rn).max(rn), w as i64)];
+    let stride = w as usize * 4;
+    let buf: &mut [u8] = &mut out;
     for y in 0..h {
-        for x in 0..w {
-            let (cx, cy) = (x as f32 + 0.5, y as f32 + 0.5);
-            let dx = (r - cx).max(cx - (w as f32 - r)).max(0.0);
-            let dy = (r - cy).max(cy - (h as f32 - r)).max(0.0);
-            let coverage = (r - (dx * dx + dy * dy).sqrt() + 0.5).clamp(0.0, 1.0);
-            let p = out.get_pixel_mut(x, y);
-            p.0[3] = (p.0[3] as f32 * coverage).round() as u8;
+        let cy = y as f32 + 0.5;
+        let dy = (r - cy).max(cy - (h as f32 - r)).max(0.0);
+        let row = &mut buf[y as usize * stride..][..stride];
+        for &(bx0, bx1) in &bands {
+            for x in bx0..bx1 {
+                let cx = x as f32 + 0.5;
+                let dx = (r - cx).max(cx - (w as f32 - r)).max(0.0);
+                let coverage = (r - (dx * dx + dy * dy).sqrt() + 0.5).clamp(0.0, 1.0);
+                let p = &mut row[x as usize * 4 + 3];
+                *p = (*p as f32 * coverage).round() as u8;
+            }
         }
     }
     out
 }
 
+/// 行内 src-over（`dst`/`src` 等长且是 4 的倍数）：整行透明跳过、整行不透明整段拷贝，其余逐像素。
+#[inline]
+fn blend_src_span(dst: &mut [u8], src: &[u8]) {
+    if src.chunks_exact(4).all(|p| p[3] == 0) {
+        return;
+    }
+    if src.chunks_exact(4).all(|p| p[3] == 255) {
+        dst.copy_from_slice(src);
+        return;
+    }
+    for (d, s) in dst.chunks_exact_mut(4).zip(src.chunks_exact(4)) {
+        blend_pixel(d, s);
+    }
+}
+
 /// src-over 合成（含越界裁剪，`x`/`y` 可为负）。
 fn blend_overlay(dst: &mut RgbaImage, src: &RgbaImage, x: i64, y: i64) {
-    for sy in 0..src.height() as i64 {
-        let dy = y + sy;
-        if dy < 0 || dy >= dst.height() as i64 {
-            continue;
-        }
-        for sx in 0..src.width() as i64 {
-            let dx = x + sx;
-            if dx < 0 || dx >= dst.width() as i64 {
-                continue;
-            }
-            let s = *src.get_pixel(sx as u32, sy as u32);
-            if s.0[3] == 0 {
-                continue;
-            }
-            blend_pixel(dst.get_pixel_mut(dx as u32, dy as u32), s);
-        }
+    let (dw, dh) = (dst.width() as i64, dst.height() as i64);
+    let (sw, sh) = (src.width() as i64, src.height() as i64);
+    // 源上可见的矩形（把越界部分裁掉，等价于原来的逐像素 continue）
+    let sx0 = (-x).max(0);
+    let sx1 = (dw - x).min(sw);
+    let sy0 = (-y).max(0);
+    let sy1 = (dh - y).min(sh);
+    if sx1 <= sx0 || sy1 <= sy0 {
+        return;
+    }
+    let len = (sx1 - sx0) as usize * 4;
+    let (dstride, sstride) = (dst.width() as usize, src.width() as usize);
+    let dbuf: &mut [u8] = dst;
+    let sbuf: &[u8] = src.as_raw();
+    for sy in sy0..sy1 {
+        let s_off = (sy as usize * sstride + sx0 as usize) * 4;
+        let d_off = ((y + sy) as usize * dstride + (x + sx0) as usize) * 4;
+        blend_src_span(&mut dbuf[d_off..d_off + len], &sbuf[s_off..s_off + len]);
     }
 }
 
@@ -746,6 +928,8 @@ fn sample_bilinear(src: &RgbaImage, x: f32, y: f32) -> Rgba<u8> {
 fn convolve3x3(img: &RgbaImage, kernel: &[f32; 9]) -> RgbaImage {
     let (w, h) = (img.width(), img.height());
     let mut out = img.clone();
+    // ponytail: 试过「内部行免边界判断 + 裸字节索引」的抽段版，实测反而慢 ~12%
+    // （bounds check 无法被证明、分支体搬进热循环），已回退；要真加速得走 SIMD 卷积。
     for y in 0..h {
         for x in 0..w {
             let mut acc = [0.0f32; 3];
