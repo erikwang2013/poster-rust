@@ -2,6 +2,15 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### 测试
+- rocket / poem / salvo 的 `POST {path}/verify` 补运行时 e2e（框架自带测试客户端：
+  `rocket::local::blocking::Client` / `poem::test::TestClient` / `salvo::test::TestClient`），
+  覆盖请求守卫取值、提取顺序、非法 JSON 的 4xx 渲染与 XFF 分桶限流；
+  另加 salvo `GET /captcha/new` 可达性回归（钉住 1.1.0 的子路由拼接修复）。
+  v1.1.0 时这三个框架只有编译验证，此套补齐运行时覆盖。
+
 ## [1.1.0] - 2026-10-07
 
 ### 新增
