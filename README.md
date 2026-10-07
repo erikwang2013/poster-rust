@@ -7,6 +7,10 @@
 
 <p align="center">
   <img src="assets/pet.svg" width="200" alt="poster-rust 项目宠物 Posty" />
+  <br/>
+  <img src="https://img.shields.io/badge/Rust-1.85%2B%20%C2%B7%20edition%202024-orange?logo=rust&logoColor=white" alt="Rust 1.85+ · edition 2024" />
+  <a href="README.md"><img src="https://img.shields.io/badge/%E6%96%87%E6%A1%A3%E8%AF%AD%E8%A8%80-%E4%B8%AD%E6%96%87-blue" alt="文档语言：中文" /></a>
+  <a href="README_EN.md"><img src="https://img.shields.io/badge/docs-English-blue" alt="docs: English" /></a>
 </p>
 
 Rust 图片验证码与海报生成工具包 —— 框架无关核心 + Guard 请求守卫 + axum / actix-web / rocket / poem / salvo / warp / bee-rust / e-cat 集成。
@@ -637,23 +641,6 @@ config::set_global(cfg)?;   // 进程级一次
 | `poster.placeholder` | `None` | 缺图占位：`None` 跳过 / `Pet` 画 Posty / `Path(p)` 画指定图 |
 | `poster.jpeg_quality` | `90` | `save()` 默认 JPEG 质量 |
 | `poster.png_compression` | `6` | PNG 压缩级别 0-9 |
-
-## 与 PHP 版的差异
-
-poster-rust 参照 [poster-php](https://github.com/erikwang2013/poster-php) 移植，核心能力一一对齐；以下为有意差异：
-
-| 项 | poster-php | poster-rust |
-|----|-----------|-------------|
-| 图像驱动 | GD / ImageMagick 双驱动 | 单一纯 Rust 驱动（`image` crate），无系统依赖 |
-| 二维码 | 自研纯 PHP 生成器 | `qrcode` crate 封装 |
-| 存储 | File / Session / Redis / PSR-16 | Memory / File / Redis（Session 为 PHP 特有） |
-| 框架适配 | Laravel / ThinkPHP / Webman / Hyperf / Yii2 / Yii3 | Guard + axum / actix-web / rocket / poem / salvo / warp / bee-rust / e-cat |
-| 配置 | `config/poster.php` 数组 | `PosterConfig` 结构体（键名对齐，可 serde 序列化） |
-| 文字 size 口径 | `imagettftext` 的磅值（96dpi ≈ ×4/3 px） | 同口径（按字体度量自动换算，同数值视觉大小一致） |
-| 背景图片 | 拉伸到画布 | 等比 cover + 居中裁剪（不变形） |
-| 二维码尺寸 | `intval` 量化到模块整数倍 | 精确到指定像素（浮点缩放） |
-| 自定义元素注册 | 运行时注册新元素类 | 内置 14 种（枚举分发），运行时注册暂不提供 |
-| 多语言文档 | 14 语言 | 中文 + 英文 |
 
 ## 开源不易，欢迎支持
 

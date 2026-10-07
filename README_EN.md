@@ -7,6 +7,10 @@
 
 <p align="center">
   <img src="assets/pet.svg" width="200" alt="poster-rust mascot Posty" />
+  <br/>
+  <img src="https://img.shields.io/badge/Rust-1.85%2B%20%C2%B7%20edition%202024-orange?logo=rust&logoColor=white" alt="Rust 1.85+ · edition 2024" />
+  <a href="README.md"><img src="https://img.shields.io/badge/docs-%E4%B8%AD%E6%96%87-blue" alt="docs: 中文" /></a>
+  <a href="README_EN.md"><img src="https://img.shields.io/badge/docs-English-blue" alt="docs: English" /></a>
 </p>
 
 Rust image captcha & poster generation toolkit — framework-agnostic core + a native Guard + axum / actix-web / rocket / poem / salvo / warp / bee-rust / e-cat integrations.
@@ -351,23 +355,6 @@ Key options (aligned with PHP's `config/poster.php`):
 | `poster.placeholder` | `None` | `None` skip / `Pet` draw Posty / `Path(p)` |
 | `poster.jpeg_quality` | `90` | Default JPEG quality |
 | `poster.png_compression` | `6` | PNG compression level 0-9 |
-
-## Differences from poster-php
-
-poster-rust is a port of [poster-php](https://github.com/erikwang2013/poster-php); core capabilities map one-to-one, with these intentional differences:
-
-| Area | poster-php | poster-rust |
-|------|-----------|-------------|
-| Image driver | GD / ImageMagick | Single pure Rust driver (`image` crate), no system deps |
-| QR codes | Hand-written pure PHP generator | `qrcode` crate |
-| Storage | File / Session / Redis / PSR-16 | Memory / File / Redis (Session is PHP-specific) |
-| Framework adapters | Laravel / ThinkPHP / Webman / Hyperf / Yii2 / Yii3 | Guard + axum / actix-web / rocket / poem / salvo / warp / bee-rust / e-cat |
-| Configuration | `config/poster.php` array | `PosterConfig` struct (same key names, serde-serializable) |
-| Text `size` scale | `imagettftext` points at 96dpi (≈ ×4/3 px) | Same scale (auto-calibrated per font metrics) |
-| Background image | Stretched to canvas | Cover-fit + center-crop (no distortion) |
-| QR code size | `intval`-quantized to whole modules | Exact pixel size (fractional scaling) |
-| Custom elements | Runtime class registration | 14 built-ins (enum dispatch) |
-| Docs | 14 languages | Chinese + English |
 
 ## Support
 
