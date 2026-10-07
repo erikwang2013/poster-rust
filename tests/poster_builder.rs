@@ -205,6 +205,95 @@ fn to_array_shape_matches_template_contract() {
     );
 }
 
+// ── 渲染缓存（对齐 PHP 的 $rendered 标志） ─────────────
+
+#[test]
+fn render_is_cached_until_invalidated() {
+    init_config();
+    let mut builder = PosterBuilder::new().unwrap();
+    builder.width(150).height(100).background("#FFFFFF").add_shape(
+        "rect",
+        ShapeElement {
+            x: 10,
+            y: 10,
+            width: 40,
+            height: 20,
+            color: "#FF0000".into(),
+            filled: true,
+            ..Default::default()
+        },
+    );
+
+    // 无变更：重复 render / output 字节一致（第二次起命中缓存）
+    let first = builder.render().unwrap();
+    let second = builder.render().unwrap();
+    assert_eq!(first.image().as_raw(), second.image().as_raw(), "无变更时重复渲染应一致");
+
+    let uri_before = builder.output("png", None).unwrap();
+    assert_eq!(uri_before, builder.output("png", None).unwrap(), "无变更时重复 output 应一致");
+
+    // render() 返回的是副本：改动画布不应污染缓存
+    let mut detached = builder.render().unwrap();
+    detached.image_mut().put_pixel(0, 0, Rgba([0, 255, 0, 255]));
+    let untouched = builder.render().unwrap();
+    assert!(!has_color("#00FF00")(&untouched.image().get_pixel(0, 0)), "render() 应返回副本");
+
+    // 改元素 → 缓存失效，输出随之变化
+    builder.add_shape(
+        "circle",
+        ShapeElement {
+            x: 110,
+            y: 60,
+            radius: Some(25),
+            color: "#0000FF".into(),
+            filled: true,
+            ..Default::default()
+        },
+    );
+    let uri_after = builder.output("png", None).unwrap();
+    assert_ne!(uri_before, uri_after, "改元素后应重新渲染");
+    assert!(
+        builder.render().unwrap().image().pixels().any(has_color("#0000FF")),
+        "新元素应出现在画布上"
+    );
+
+    // 背景变更同样失效
+    let uri_round2 = builder.output("png", None).unwrap();
+    builder.background("#123456");
+    assert_ne!(builder.output("png", None).unwrap(), uri_round2, "改背景后应重新渲染");
+}
+
+#[test]
+fn output_bytes_matches_output_and_save() {
+    init_config();
+    let mut builder = PosterBuilder::new().unwrap();
+    builder.width(90).height(60).background("#336699");
+
+    let bytes = builder.output_bytes("png", None).unwrap();
+    assert!(bytes.starts_with(&[0x89, b'P', b'N', b'G']), "png 魔数");
+
+    // 与 output() 的 data URI 载荷一致
+    use base64::Engine;
+    let uri = builder.output("png", None).unwrap();
+    let payload = uri.strip_prefix("data:image/png;base64,").expect("data URI 前缀");
+    assert_eq!(
+        base64::engine::general_purpose::STANDARD.decode(payload).unwrap(),
+        bytes,
+        "output_bytes 与 output 载荷应一致"
+    );
+
+    // 缓存不改变保存结果：两次 save 到不同路径字节一致
+    let path_a = temp_path("builder-cache-a.png");
+    let path_b = temp_path("builder-cache-b.png");
+    builder.save(&path_a, None).unwrap();
+    builder.save(&path_b, None).unwrap();
+    let file_a = std::fs::read(&path_a).unwrap();
+    assert_eq!(file_a, std::fs::read(&path_b).unwrap(), "两次 save 字节一致");
+    assert_eq!(file_a, bytes, "save 与 output_bytes 字节一致");
+    let _ = std::fs::remove_file(&path_a);
+    let _ = std::fs::remove_file(&path_b);
+}
+
 #[test]
 fn missing_image_falls_back_to_pet_placeholder() {
     init_config();
