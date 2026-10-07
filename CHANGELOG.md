@@ -2,6 +2,13 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.2] - 2026-10-07
+
+### 文档
+- README（中 / 英）移除「与 PHP 版的差异」章节。
+- 项目宠物下方新增语言标签：Rust 1.85+ · edition 2024（项目语言）与文档语言互链
+  （shields.io 徽章，三个链接已验证均返回 200）。
+
 ## [1.1.1] - 2026-10-07
 
 ### 测试
@@ -77,7 +84,7 @@
   默认中文字体阿里巴巴普惠体。
 - 中英双语文档 + 架构 / 功能设计图。
 
-[Unreleased]: https://github.com/erikwang2013/poster-rust/compare/v1.1.1...HEAD
+[1.1.2]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.1.2
 [1.1.1]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.1.1
 [1.1.0]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.1.0
 [1.0.1]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.0.1
