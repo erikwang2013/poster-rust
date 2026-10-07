@@ -2,7 +2,7 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [1.0.1] - 2026-10-07
 
 ### 修复
 - **只开单个框架 feature 时无法编译**（v1.0.0 存在）：`axum` 缺 json/query/tokio/http1 特性、
@@ -50,5 +50,6 @@
   默认中文字体阿里巴巴普惠体。
 - 中英双语文档 + 架构 / 功能设计图。
 
-[Unreleased]: https://github.com/erikwang2013/poster-rust/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/erikwang2013/poster-rust/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.0.1
 [1.0.0]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.0.0
