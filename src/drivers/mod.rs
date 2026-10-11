@@ -1,7 +1,7 @@
-//! 图像驱动：纯 Rust 画布（`image` crate），对应 PHP 版的 GD 驱动。
+//! 图像驱动：纯 Rust 画布（`image` crate），单一实现、无系统依赖。
 //!
-//! PHP 侧有 GD / Imagick 双驱动，Rust 侧单一纯 Rust 实现、无系统依赖；
-//! 方法面与 `ImageDriverInterface` 一一对应，选项键与 PHP 版一致（JSON 模板可直接互用）。
+//! 方法面覆盖全部绘图图元；选项键多词形式同时接受 camelCase 与 snake_case，
+//! JSON 模板可直接读写。
 
 pub mod canvas;
 pub mod color;
@@ -23,7 +23,7 @@ pub enum TextAlign {
     Right,
 }
 
-/// 文字绘制选项，键名对齐 PHP `text()` 的 options
+/// 文字绘制选项
 /// （多词键同时接受 camelCase 与历史 snake_case，如 `maxWidth` / `max_width`）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -65,7 +65,7 @@ impl Default for TextOptions {
 #[serde(default, rename_all = "camelCase")]
 pub struct ShapeOptions {
     pub color: String,
-    /// 圆角半径（仅矩形，`filled = true` 时生效；与 PHP 一致，描边矩形忽略圆角）。
+    /// 圆角半径（仅矩形，`filled = true` 时生效；描边矩形忽略圆角）。
     pub radius: u32,
     pub filled: bool,
     /// 透明度 0-1（0-100 也接受）；`None` = 由颜色自带 alpha 决定。
@@ -101,7 +101,7 @@ impl Default for LineOptions {
     }
 }
 
-/// 图片叠加的阴影选项（PHP `image()` 的 `shadow`）。
+/// 图片叠加的阴影选项（叠加选项的 `shadow` 子项）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ShadowOptions {
@@ -129,7 +129,7 @@ impl Default for ShadowOptions {
     }
 }
 
-/// 图片叠加选项（PHP `image()` 的 options）。
+/// 图片叠加选项。
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct OverlayOptions {

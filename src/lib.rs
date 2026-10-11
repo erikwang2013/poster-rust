@@ -1,8 +1,7 @@
 #![forbid(unsafe_code)]
 //! poster-rust —— Rust 图片验证码与海报生成工具包。
 //!
-//! 参照 PHP 版 [poster-php](https://github.com/erikwang2013/poster-php) 移植，只做两件事，
-//! 并且做到够用：
+//! 只做两件事，并且做到够用：
 //!
 //! - **验证码**：点击 / 旋转 / 滑块三种人机校验 + 随机切换，纯 Rust 生成图片与答案，
 //!   不依赖第三方服务。
@@ -42,8 +41,7 @@ pub use error::{PosterError, Result};
 pub use guard::{CaptchaImage, Guard};
 pub use poster::{PosterBuilder, PosterTemplate};
 
-/// 进程级默认管理器（`captcha_create` / `captcha_verify` 之间共享同一存储，
-/// 对应 PHP 版 `StorageFactory` 的静态缓存语义）。
+/// 进程级默认管理器（`captcha_create` / `captcha_verify` 之间共享同一存储）。
 ///
 /// `captcha.file_path` 配了就用文件存储（跨进程共享），否则进程内存储。
 pub fn default_manager() -> Result<Arc<CaptchaManager>> {
@@ -56,7 +54,7 @@ pub fn default_manager() -> Result<Arc<CaptchaManager>> {
     }
 }
 
-/// 生成一张验证码（等价 PHP `captcha_create()`）。
+/// 生成一张验证码。
 ///
 /// `captcha_type` 为 `None` 时取配置默认类型；返回的
 /// [`CaptchaBuilder`] 链式设置后调 `generate()`。
@@ -64,13 +62,12 @@ pub fn captcha_create(captcha_type: Option<&str>) -> Result<CaptchaBuilder> {
     default_manager()?.create(captcha_type)
 }
 
-/// 校验用户答案（等价 PHP `captcha_verify()`；限流身份为默认身份，多用户服务
-/// 请用 [`Guard::verify_as`] 传入 IP / uid）。
+/// 校验用户答案；限流身份为默认身份，多用户服务请用 [`Guard::verify_as`] 传入 IP / uid。
 pub fn captcha_verify(key: &str, answer: Answer) -> Result<bool> {
     default_manager()?.verify(key, answer)
 }
 
-/// 新建海报 Builder（等价 PHP `poster_create()`）；宽高为 `None` 时取配置默认（750×1334）。
+/// 新建海报 Builder；宽高为 `None` 时取配置默认（750×1334）。
 pub fn poster_create(width: Option<u32>, height: Option<u32>) -> Result<PosterBuilder> {
     let mut builder = PosterBuilder::new()?;
     if let Some(w) = width {

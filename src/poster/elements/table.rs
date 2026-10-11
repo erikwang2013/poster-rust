@@ -1,4 +1,4 @@
-//! 表格元素，对应 PHP `TableElement`：表头 + 斑马纹数据行 + 行底线。
+//! 表格元素：表头 + 斑马纹数据行 + 行底线。
 
 use std::path::PathBuf;
 
@@ -14,7 +14,7 @@ use super::{ElementRender, MAX_DIM, RenderCtx, bounded, cell_text, text_align};
 /// 表格。
 ///
 /// 选项键同时接受文档里的 camelCase（`header` / `columns` / `headerBg`…）与历史
-/// snake_case（`headers` / `col_widths` / `header_bg`…），与 PHP 版一致；导出统一写 camelCase。
+/// snake_case（`headers` / `col_widths` / `header_bg`…）；导出统一写 camelCase。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TableElement {
@@ -237,7 +237,7 @@ fn cell_x(col_x: i32, col_width: u32, align: &str, pad: i32) -> i32 {
     }
 }
 
-/// 文本基线：文字按基线绘制，需下移半个字高才是视觉居中（同 PHP `TableElement::baseline()`）。
+/// 文本基线：文字按基线绘制，需下移半个字高才是视觉居中。
 fn baseline(top: i32, height: u32, font_size: f32) -> i32 {
     top.saturating_add(((height as f32 + font_size * 0.72) / 2.0) as i32)
 }

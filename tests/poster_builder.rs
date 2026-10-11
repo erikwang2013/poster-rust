@@ -205,7 +205,7 @@ fn to_array_shape_matches_template_contract() {
     );
 }
 
-// ── 渲染缓存（对齐 PHP 的 $rendered 标志） ─────────────
+// ── 渲染缓存（无变更时命中） ─────────────
 
 #[test]
 fn render_is_cached_until_invalidated() {

@@ -333,7 +333,7 @@ fn square_piece_is_a_plain_rectangle() {
 // ── Builder 行为 ────────────────────────────────────────────
 
 #[test]
-fn builders_clamp_like_php() {
+fn builders_clamp_parameters() {
     let (manager, storage) = manager();
 
     // set_size 钳到 60-400：500 → 400

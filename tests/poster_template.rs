@@ -64,8 +64,8 @@ fn builder_template_round_trip_matches() {
 }
 
 #[test]
-fn php_style_keys_and_values_are_accepted() {
-    // PHP 导出的键名：snake_case 的 label_size / col_widths / headers、artistictext 别名
+fn snake_case_keys_and_values_are_accepted() {
+    // snake_case 键名：label_size / col_widths / headers、artistictext 别名
     let template = PosterTemplate::from_config(sample_template()).unwrap();
     let qrcode = &template.elements()[2];
     let value = serde_json::to_value(qrcode).unwrap();

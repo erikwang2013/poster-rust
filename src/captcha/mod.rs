@@ -1,18 +1,18 @@
-//! 验证码：点击 / 旋转 / 滑块 + 随机切换，对应 PHP 版 `src/Captcha/*`。
+//! 验证码：点击 / 旋转 / 滑块 + 随机切换。
 //!
-//! 口径与 PHP 逐项对齐：容差 click ±18px / rotate ±5° / slider ±4px、TTL 300s、
+//! 口径：容差 click ±18px / rotate ±5° / slider ±4px、TTL 300s、
 //! 同 key 最多 3 次（超出即删）、校验成功即删（一次性）、跨 key 窗口限流 30 次/60s、
 //! 轨迹校验默认关闭（min_points 4 / 300–5000ms / max_linearity 0.99）。
 //!
-//! 与 PHP 的差异（有意为之，逐条见各文件文档注释）：
+//! 实现约定（逐条见各文件文档注释）：
 //! - 图片 PNG 字节**一并持久化**（`captcha:{key}:img`），供框架层的 `GET {path}/{key}` 端点直出，
 //!   不必把 base64 塞进载荷再解回来；成功校验时与答案一起删除；
-//! - `set_background()` 指向的文件不存在时直接报错，不再像 PHP 那样静默回落到配置背景；
-//! - 「计数不可用」在 Rust 侧以 `Option` 表达并由调用方失败关闭，语义与 PHP 的返回值 0 相同。
+//! - `set_background()` 指向的文件不存在时直接报错，不静默回落到配置背景；
+//! - 「计数不可用」以 `Option` 表达并由调用方失败关闭。
 //!
 //! 类型从存储的载荷里取，`verify()` 不需要再传 type：`CaptchaType` 与实际载荷不符时
 //! 返回 `Ok(false)`（不泄露「类型不匹配」与「答案错误」的区别）；载荷损坏同样返回
-//! `Ok(false)`（PHP 侧损坏即视为不存在）。存储故障则以 `Err` 上抛。
+//! `Ok(false)`（损坏的载荷一律按不存在处理）。存储故障则以 `Err` 上抛。
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -42,7 +42,7 @@ pub(crate) use factory::CaptchaFactory;
 pub use manager::CaptchaManager;
 pub use trajectory::Trajectory;
 
-/// 验证码类型。`Random` 只是**请求**语义，生成时会解析成三种之一（同 PHP 工厂）。
+/// 验证码类型。`Random` 只是**请求**语义，生成时会解析成三种之一。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
@@ -252,7 +252,7 @@ impl Answer {
 
 /// 生成结果，可直接序列化成前端 JSON。
 ///
-/// 字段名与 PHP 载荷一致：`key` / `type` / `image` / `extra`（`url` 缺省不出现）。
+/// 字段名：`key` / `type` / `image` / `extra`（`url` 缺省不出现）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CaptchaResult {
     /// 随机 key（16 字节随机数的 hex），不可预测。
@@ -262,9 +262,9 @@ pub struct CaptchaResult {
     /// 实际类型：`click` | `rotate` | `slider`（`random` 会被解析成具体类型）。
     #[serde(rename = "type")]
     pub captcha_type: String,
-    /// 各类型专属字段，键名与 PHP 一致。
+    /// 各类型专属字段。
     pub extra: Value,
-    /// 图片端点 URL：路由模式下由框架层填（PHP `captcha.route`）。
+    /// 图片端点 URL：路由模式下由框架层填。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
 }
@@ -275,14 +275,14 @@ pub(crate) struct Ctx {
     pub storage: Arc<dyn Storage>,
 }
 
-/// 「抽象验证码」：三种实现共用的状态与背景生成（对应 PHP `AbstractCaptcha`）。
+/// 「抽象验证码」：三种实现共用的状态与背景生成。
 pub(crate) struct Base {
     pub ctx: Arc<Ctx>,
     pub kind: CaptchaType,
     pub difficulty: Difficulty,
     /// 显式背景图（优先级最高）。
     pub background: Option<PathBuf>,
-    /// 画布宽（载入背景图后会被图片尺寸覆盖，同 PHP）。
+    /// 画布宽（载入背景图后会被图片尺寸覆盖）。
     pub width: u32,
     /// 画布高。
     pub height: u32,
@@ -291,7 +291,7 @@ pub(crate) struct Base {
 }
 
 impl Base {
-    /// 新建并生成 key（同 PHP `generateKey()`：16 字节随机数 → hex）。
+    /// 新建并生成 key（16 字节随机数 → hex）。
     pub fn new(
         ctx: Arc<Ctx>,
         kind: CaptchaType,
@@ -311,10 +311,10 @@ impl Base {
         }
     }
 
-    /// 背景图，三级优先级（同 PHP `createBackground()`）：
+    /// 背景图，三级优先级：
     /// 显式背景图 > 配置背景目录（`BackgroundSource::Dir` / `Embedded`）> 程序化生成。
     ///
-    /// 目录不存在或目录里没图时静默回落到程序化生成（PHP 同）；显式背景图加载失败则报错。
+    /// 目录不存在或目录里没图时静默回落到程序化生成；显式背景图加载失败则报错。
     pub fn create_background(&mut self) -> Result<ImageDriver> {
         if let Some(path) = self.background.clone() {
             let bg = ImageDriver::load(&path).map_err(|e| {
@@ -554,7 +554,7 @@ impl Base {
     }
 }
 
-/// 生成 key：16 字节随机数的 hex（同 PHP `bin2hex(random_bytes(16))`）。
+/// 生成 key：16 字节随机数的 hex。
 pub(crate) fn generate_key() -> String {
     let bytes: [u8; 16] = rand::rng().random();
     bytes.iter().map(|b| format!("{b:02x}")).collect()
@@ -581,7 +581,7 @@ pub(crate) fn png_data_uri(png: &[u8]) -> String {
     )
 }
 
-/// 随机色 `#RRGGBB`（各通道 0-200，同 PHP `randomColor()`）。
+/// 随机色 `#RRGGBB`（各通道 0-200）。
 pub(crate) fn random_color() -> String {
     let mut rng = rand::rng();
     format!(
@@ -592,7 +592,7 @@ pub(crate) fn random_color() -> String {
     )
 }
 
-/// 随机浅色 `#RRGGBB`（各通道 200-255，同 PHP `randomLightColor()`）。
+/// 随机浅色 `#RRGGBB`（各通道 200-255）。
 pub(crate) fn random_light_color() -> String {
     let mut rng = rand::rng();
     format!(
@@ -634,7 +634,7 @@ fn load_dir_background(dir: &Path, width: u32, height: u32) -> Result<Option<Ima
     Ok(Some(bg))
 }
 
-/// 风格配色，同 PHP `palettesForStyle()`。
+/// 风格配色。
 fn palettes_for_style(style: &str) -> &'static [(&'static str, &'static str)] {
     match style {
         "vibrant" => &[
@@ -662,7 +662,7 @@ fn palettes_for_style(style: &str) -> &'static [(&'static str, &'static str)] {
     }
 }
 
-/// 两色线性插值（`t` 0-1），同 PHP `interpolateColor()`。
+/// 两色线性插值（`t` 0-1）。
 fn interpolate_color(from: &str, to: &str, t: f32) -> Result<String> {
     let a = crate::drivers::color::parse(from)?;
     let b = crate::drivers::color::parse(to)?;
@@ -700,7 +700,7 @@ pub struct CaptchaBuilder {
     size: u32,
     angle_range: (f32, f32),
     shape: Option<SliderShape>,
-    /// setter 参数的校验错误。链式 setter 一律返回 `Self`（同 PHP 的可链式配置），
+    /// setter 参数的校验错误。链式 setter 一律返回 `Self`，
     /// 非法取值在这里挂起，由 `generate()` 一并报出——边界仍然卡得住，链不断。
     pending_error: Option<PosterError>,
 }
@@ -745,13 +745,13 @@ impl CaptchaBuilder {
         self
     }
 
-    /// 旋转验证码的圆图直径（钳制到 60-400，同 PHP）。
+    /// 旋转验证码的圆图直径（钳制到 60-400）。
     pub fn set_size(mut self, size: u32) -> Self {
         self.size = size.clamp(60, 400);
         self
     }
 
-    /// 旋转验证码的角度范围（钳制到 1-359，同 PHP）。
+    /// 旋转验证码的角度范围（钳制到 1-359）。
     pub fn set_angle_range(mut self, min: f32, max: f32) -> Self {
         self.angle_range = (min.max(1.0), max.min(359.0));
         self
@@ -887,7 +887,7 @@ mod tests {
     }
 
     #[test]
-    fn result_serializes_php_compatible_keys() {
+    fn result_serializes_contract_keys() {
         let result = CaptchaResult {
             key: "abc".into(),
             image: "data:image/png;base64,AA==".into(),
@@ -897,7 +897,7 @@ mod tests {
         };
         let value: Value = serde_json::to_value(&result).unwrap();
         assert_eq!(value["key"], "abc");
-        assert_eq!(value["type"], "click", "PHP 载荷用 type 而非 captcha_type");
+        assert_eq!(value["type"], "click", "载荷键用 type 而非 captcha_type");
         assert!(value.get("url").is_none(), "url 为空时不应出现");
         assert_eq!(value["extra"]["texts"][0]["order"], 1);
 

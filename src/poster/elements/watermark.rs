@@ -1,4 +1,4 @@
-//! 水印元素，对应 PHP `WatermarkElement`：按间距在整张画布上平铺文字。
+//! 水印元素：按间距在整张画布上平铺文字。
 
 use std::path::PathBuf;
 
@@ -19,8 +19,7 @@ fn default_angle() -> f32 {
 
 /// 文字水印。
 ///
-/// 选项键与驱动的 `text()` 一致，另加 `spacing_x` / `spacing_y` / `spacing`（snake_case，
-/// 与 PHP 版逐字一致）。
+/// 选项键与驱动的 `text()` 一致，另加 `spacing_x` / `spacing_y` / `spacing`（snake_case）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct WatermarkElement {

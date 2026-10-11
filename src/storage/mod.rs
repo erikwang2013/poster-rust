@@ -1,13 +1,13 @@
 //! 验证码存储后端：带 TTL 的字节存储 + 原子计数。
 //!
-//! 对应 PHP 版 `src/Storage/*`，语义逐项对齐：
-//! - `set` 写入新值并**重置**该 key 的尝试计数（PHP `set()` 里 `attempts => 0`）；
+//! 语义约定：
+//! - `set` 写入新值并**重置**该 key 的尝试计数；
 //! - `increment` 是「读改写」，必须原子；键不存在 / 已过期 / 写入失败时返回 `None`，
-//!   调用方（Manager / RateLimiter）据此**失败关闭**（PHP 用返回值 0 表达同一状态）；
+//!   调用方（Manager / RateLimiter）据此**失败关闭**；
 //! - 过期条目在读取时惰性清除。
 //!
-//! 与 PHP 的差异：PHP 用 `bool`/`int` 兼作错误码，Rust 侧错误走 `Result`，
-//! 「计数不可用」走 `Option`，不再让 0/false 承担两种含义。
+//! 错误模型：硬错误走 `Result`，「计数不可用」走 `Option`，
+//! 不让同一个返回值承担两种含义。
 
 use std::time::Duration;
 

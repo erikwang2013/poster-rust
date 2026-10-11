@@ -1,4 +1,4 @@
-//! 颜色解析：只接受 `#RGB` / `#RRGGBB` / `#RRGGBBAA`，其它形式报错（与 PHP 版一致）。
+//! 颜色解析：只接受 `#RGB` / `#RRGGBB` / `#RRGGBBAA`，其它形式报错。
 
 use image::Rgba;
 

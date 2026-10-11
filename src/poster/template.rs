@@ -1,4 +1,4 @@
-//! 海报模板，对应 PHP `PosterTemplate`：`{width, height, elements}` 的读写与变量替换。
+//! 海报模板：`{width, height, elements}` 的读写与变量替换。
 
 use std::collections::BTreeMap;
 
@@ -8,7 +8,7 @@ use crate::error::{PosterError, Result};
 
 use super::elements::Element;
 
-/// 模板里未写尺寸时的默认值（同 PHP 的硬编码 750×1334）。
+/// 模板里未写尺寸时的默认值（750×1334）。
 pub const DEFAULT_WIDTH: u32 = 750;
 /// 见 [`DEFAULT_WIDTH`]。
 pub const DEFAULT_HEIGHT: u32 = 1334;
@@ -116,7 +116,7 @@ impl PosterTemplate {
         })
     }
 
-    /// 导出为 JSON 文本（缩进格式，同 PHP 的 `JSON_PRETTY_PRINT`）。
+    /// 导出为 JSON 文本（缩进格式）。
     pub fn to_json(&self) -> Result<String> {
         Ok(serde_json::to_string_pretty(&self.to_array())?)
     }
@@ -137,7 +137,7 @@ mod tests {
     }
 
     #[test]
-    fn sizes_default_like_php() {
+    fn sizes_default_to_750x1334() {
         let template = PosterTemplate::from_config(serde_json::json!({})).unwrap();
         assert_eq!((template.width(), template.height()), (750, 1334));
     }

@@ -380,7 +380,7 @@ fn random_type_resolves_before_generating() {
 }
 
 #[test]
-fn result_json_uses_php_key_names() {
+fn result_json_uses_contract_key_names() {
     let (manager, _) = manager();
     let result = manager
         .create(Some("rotate"))

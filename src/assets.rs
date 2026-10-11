@@ -1,6 +1,6 @@
 //! 内置素材：项目宠物 Posty、6 张验证码背景、默认中文字体。
 //!
-//! 路径与 PHP 版 `assets/` 一一对应：
+//! 路径布局：
 //! - `assets/pet.png` / `assets/pet.svg` —— 宠物，`include_bytes!` 内嵌，随包分发
 //! - `assets/backgrounds/*.png` —— 验证码内置背景（400×250），内嵌
 //! - `assets/fonts/Alibaba-PuHuiTi-Regular.ttf` —— 默认字体（9.7MB，不内嵌，按路径暴露）
@@ -23,14 +23,14 @@ pub const BACKGROUNDS: [(&str, &[u8]); 6] = [
     ("sunset", include_bytes!("../assets/backgrounds/sunset.png")),
 ];
 
-/// 随包分发的默认字体路径（阿里巴巴普惠体），对应 PHP `src/fonts/`。
+/// 随包分发的默认字体路径（阿里巴巴普惠体）。
 ///
 /// 经 `CARGO_MANIFEST_DIR` 定位：源码构建与 crates.io 安装（源码目录已解包）均可用。
 pub fn default_font_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/fonts/Alibaba-PuHuiTi-Regular.ttf")
 }
 
-/// 宠物 PNG 在源码树中的路径（等价 PHP `PosterBuilder::petPath()`）。
+/// 宠物 PNG 在源码树中的路径。
 ///
 /// 需要「文件路径」而非字节时使用（如作为二维码中心 Logo）；
 /// 直接画进海报请用 [`PET_PNG`] 或 `PosterBuilder::add_pet()`。

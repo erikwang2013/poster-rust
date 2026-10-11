@@ -1,4 +1,4 @@
-//! 旋转验证码，对应 PHP `RotateCaptcha`。
+//! 旋转验证码。
 //!
 //! 随机旋转圆图 N 度（默认难度下调自 `[30, 200]`，可用 `set_angle_range` 再收窄），
 //! 用户拖回正；校验按 **角度** 比对，容差 ±5°，且按圆周差取最短边（`359°` 与 `1°` 相差 2°）。
@@ -11,7 +11,7 @@ use crate::error::Result;
 
 use super::{Base, CaptchaBuilder, CaptchaResult, CaptchaType, Difficulty};
 
-/// GD `IMG_FILTER_CONTRAST` 的强度（同 PHP）。
+/// 对比度增强强度（0 = 关闭）。
 const CONTRAST: f32 = 12.0;
 
 /// 生成旋转验证码。
@@ -31,7 +31,7 @@ pub(crate) fn generate(builder: CaptchaBuilder) -> Result<CaptchaResult> {
     let mut bg = base.create_background()?;
     contrast(&mut bg, CONTRAST);
 
-    // 按难度调节角度范围；set_angle_range 的上下限优先，并保证 lo <= hi（同 PHP）
+    // 按难度调节角度范围；set_angle_range 的上下限优先，并保证 lo <= hi
     let (range_min, range_max) = match difficulty {
         Difficulty::Easy => (10, 90),
         Difficulty::Hard => (90, 330),
@@ -43,7 +43,7 @@ pub(crate) fn generate(builder: CaptchaBuilder) -> Result<CaptchaResult> {
 
     bg.rotate(angle, "transparent")?;
     let (rotated_w, rotated_h) = bg.size();
-    // 背景图比圆图小时偏移可能为负：用 i32 截断除法，同 PHP intval()
+    // 背景图比圆图小时偏移可能为负：用 i32 截断除法（向零取整）
     bg.crop(
         (rotated_w as i32 - size as i32) / 2,
         (rotated_h as i32 - size as i32) / 2,
@@ -65,7 +65,7 @@ pub(crate) fn generate(builder: CaptchaBuilder) -> Result<CaptchaResult> {
 
 /// 对比度增强：绕中灰线性拉伸，`c = (1 + amount/100)²`。
 ///
-/// PHP 侧走 GD 的 `IMG_FILTER_CONTRAST`；这里用等价形态的线性拉伸近似，
+/// 绕中灰的线性拉伸近似对比度滤镜，
 /// 具体 LUT 未逐位复刻（属于观感差异，不影响校验口径）。
 fn contrast(driver: &mut ImageDriver, amount: f32) {
     if amount == 0.0 {

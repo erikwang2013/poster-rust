@@ -1,13 +1,13 @@
 //! Redis 存储（`redis` feature）：键前缀取 `captcha.redis_prefix`，多机共享、计数原子。
 //!
-//! 键布局（同 PHP 版 `RedisStorage`）：
+//! 键布局：
 //! - `{prefix}{key}` —— 值（二进制安全的原始字节，不再套 JSON/base64）；
 //! - `{prefix}{key}:att` —— 尝试计数，`INCR` 原子自增，首次自增时补上过期时间；
 //! - `{prefix}rate:…`（限流计数键，见 [`Storage::increment_or_init`]）：计数即键本身，`INCR` + `EXPIRE`。
 //!
-//! 与 PHP 的差异：计数键在**主键已不存在**时会被清掉并返回 `None`（失败关闭）。
-//! PHP 的 `INCR` 会凭空建键并返回 1，把「键已被并发删除」记成了一次有效尝试；
-//! 各后端统一成失败关闭，语义更紧。
+//! 计数键在**主键已不存在**时会被清掉并返回 `None`（失败关闭）：直接 `INCR` 会
+//! 凭空建键并返回 1，把「键已被并发删除」记成了一次有效尝试；各后端统一成
+//! 失败关闭，语义更紧。
 //!
 //! 连接管理：读写都带超时（无超时的连接会把请求线程永久挂住）；操作遇错即丢弃连接，
 //! 下次操作重建。**不重试**——`INCR` 之类命令重试可能把「执行成功但响应丢失」记两次，
@@ -49,7 +49,7 @@ impl RedisStorage {
     }
 
     /// 按配置连接：前缀取 `captcha.redis_prefix`，地址取环境变量 `REDIS_URL`，
-    /// 缺省 `redis://127.0.0.1:6379/`（PHP 侧对应 `captcha.redis.connection`）。
+    /// 缺省 `redis://127.0.0.1:6379/`。
     pub fn from_config(config: &crate::config::PosterConfig) -> Result<Self> {
         let url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379/".into());
         Self::new(&url, &config.captcha.redis_prefix)
@@ -129,7 +129,7 @@ impl Storage for RedisStorage {
                     let _: u64 = conn.del(&counter_key)?;
                     return Ok(None);
                 }
-                // 计数键是刚建出来的，过期时间跟主键走（同 PHP）
+                // 计数键是刚建出来的，过期时间跟主键走
                 let ttl: i64 = conn.ttl(&value_key)?;
                 if ttl > 0 {
                     let _: i64 = conn.expire(&counter_key, ttl)?;
@@ -158,7 +158,7 @@ impl Storage for RedisStorage {
     }
 }
 
-/// TTL 秒数：截断取整（同 PHP `intval`），但 Redis 的 `SETEX` 不接受 0，故下限 1 秒。
+/// TTL 秒数：截断取整，但下限 1 秒（`SETEX` 不接受 0）。
 fn ttl_seconds(ttl: Duration) -> u64 {
     ttl.as_secs().max(1)
 }

@@ -141,7 +141,7 @@ impl Storage for MemoryStorage {
     fn set(&self, key: &str, value: &[u8], ttl: Duration) -> Result<()> {
         let record = Record {
             v: b64_encode(value),
-            // set 重置计数（同 PHP）
+            // set 重置计数
             a: 0,
             e: expiry_of(ttl),
         };

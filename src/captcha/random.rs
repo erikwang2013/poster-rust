@@ -1,5 +1,4 @@
-//! 随机切换：从 click / rotate / slider 里随机选一种，对应 PHP `CaptchaFactory` 的
-//! `'random'` 分支（PHP 没有独立的 RandomCaptcha 类，随机就发生在工厂里）。
+//! 随机切换：从 click / rotate / slider 里随机选一种（`random` 在工厂里解析成具体类型）。
 
 use rand::Rng;
 

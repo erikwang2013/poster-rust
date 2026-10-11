@@ -1,4 +1,4 @@
-//! 文字元素，对应 PHP `TextElement`：选项直接透传给驱动的 `text()`。
+//! 文字元素：选项直接透传给驱动的 `text()`。
 
 use serde::{Deserialize, Serialize};
 
@@ -14,12 +14,12 @@ use super::{ElementRender, RenderCtx};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TextElement {
-    /// 文字内容；模板里也可写作 `content`（PHP 同时接受两个键，优先 `text`）。
+    /// 文字内容；模板里也可写作 `content`（两个键都接受，优先 `text`）。
     #[serde(alias = "content")]
     pub text: String,
     /// 文本基线锚点的 x（px）。
     pub x: i32,
-    /// 文本基线锚点的 y（px，同 `imagettftext`）。
+    /// 文本基线锚点的 y（px）。
     pub y: i32,
     /// 字体、字号、颜色、换行、旋转等。
     #[serde(flatten)]

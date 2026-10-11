@@ -1,6 +1,6 @@
-//! 验证码管理器，对应 PHP `CaptchaManager`：创建 → 生成 → 校验的入口。
+//! 验证码管理器：创建 → 生成 → 校验的入口。
 //!
-//! 校验顺序（前两步是 Rust 侧的加固，其余与 PHP 一致）：
+//! 校验顺序（前两步为额外加固）：
 //! 0. key 形态检查：必须是 `generate_key()` 产出的 32 位十六进制，否则直接失败——
 //!    key 要拼进存储键名（`captcha:{key}`），放任任意字符串等于把别的命名空间
 //!    （`rate:` / `probe:`）暴露给调用方；
@@ -12,7 +12,7 @@
 //! 5. 通过 → **抢删载荷**（`delete` 返回 true 的那次才算通过，见图），失败 → 保留剩余次数。
 //!
 //! 类型从存储的载荷里取，`verify()` 不必再传 type；答案变体与载荷类型不符时返回
-//! `Ok(false)`。存储故障以 `Err` 上抛（PHP 一律吞成 false，Rust 侧让部署问题可见）。
+//! `Ok(false)`。存储故障以 `Err` 上抛（让部署问题可见）。
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -73,7 +73,7 @@ impl CaptchaManager {
         }
     }
 
-    /// 注入限流身份解析器（PHP 构造函数里的 `$identityResolver`）。
+    /// 注入限流身份解析器。
     pub fn with_identity_resolver(
         mut self,
         resolver: Arc<dyn Fn() -> String + Send + Sync>,
@@ -128,7 +128,7 @@ impl CaptchaManager {
         let Some(entry) = self.ctx.storage.get(&store_key)? else {
             return Ok(false);
         };
-        // 载荷损坏按「不存在」处理（PHP 各存储实现同样以 null/0 表达）
+        // 载荷损坏按「不存在」处理
         let Ok(payload) = entry.json() else {
             return Ok(false);
         };
@@ -154,8 +154,8 @@ impl CaptchaManager {
         Ok(true)
     }
 
-    /// 取生成时持久化的图片 PNG 字节，供框架层的 `GET {path}/{key}` 端点直出
-    /// （等价 PHP 的 `captcha.route` / `CaptchaImage::png()`）。key 不存在或已过期返回 `None`。
+    /// 取生成时持久化的图片 PNG 字节，供框架层的 `GET {path}/{key}` 端点直出。
+    /// key 不存在或已过期返回 `None`。
     pub fn image_bytes(&self, key: &str) -> Result<Option<Vec<u8>>> {
         if !is_valid_key(key) {
             return Ok(None);
@@ -202,7 +202,7 @@ fn check(config: &PosterConfig, payload: &Value, answer: &Answer) -> bool {
     }
 }
 
-/// 点击：坐标顺序 + 容差半径（PHP `checkClick`）。
+/// 点击：坐标顺序 + 容差半径。
 fn check_click(payload: &Value, points: &[(f32, f32)], tolerance: f32) -> bool {
     let Some(targets) = payload.get("targets").and_then(Value::as_array) else {
         return false;
@@ -225,7 +225,7 @@ fn check_click(payload: &Value, points: &[(f32, f32)], tolerance: f32) -> bool {
     true
 }
 
-/// 旋转：按圆周差取最短边（PHP `checkRotate`）。
+/// 旋转：按圆周差取最短边。
 fn check_rotate(payload: &Value, angle: f32, tolerance: f32) -> bool {
     let Some(actual) = payload.get("angle").and_then(Value::as_f64) else {
         return false;
@@ -241,7 +241,7 @@ fn check_rotate(payload: &Value, angle: f32, tolerance: f32) -> bool {
     diff <= tolerance as f64
 }
 
-/// 滑块：x 容差（PHP `checkSlider`）。
+/// 滑块：x 容差。
 fn check_slider(payload: &Value, x: f32, tolerance: f32) -> bool {
     let Some(actual) = payload.get("x").and_then(Value::as_f64) else {
         return false;

@@ -1,4 +1,4 @@
-//! 滑块验证码，对应 PHP `SliderCaptcha`。
+//! 滑块验证码。
 //!
 //! 从背景切出拼图块并在随机位置挖出缺口，用户把拼图块拖回缺口；校验按 **x** 比对，容差 ±4px。
 //!
@@ -19,11 +19,11 @@ use crate::error::{PosterError, Result};
 
 use super::{Base, CaptchaBuilder, CaptchaResult, CaptchaType, Difficulty, SliderShape, png_data_uri};
 
-/// 缺口/拼图块的颜色（半透明黑，同 PHP）。
+/// 缺口/拼图块的颜色（半透明黑）。
 const GAP_COLOR: &str = "#00000040";
-/// jigsaw 轮廓半圆的分段数（同 PHP）。
+/// jigsaw 轮廓半圆的分段数。
 const ARC_SEGMENTS: usize = 12;
-/// 全图混淆噪点个数（同 PHP）。
+/// 全图混淆噪点个数。
 const NOISE_COUNT: usize = 30;
 
 /// 生成滑块验证码。

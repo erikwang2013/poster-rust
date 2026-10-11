@@ -1,4 +1,4 @@
-//! 海报 Builder，对应 PHP `PosterBuilder`：链式拼装 → 渲染 → 保存 / 输出。
+//! 海报 Builder：链式拼装 → 渲染 → 保存 / 输出。
 
 use std::cell::{Ref, RefCell};
 use std::collections::BTreeMap;
@@ -44,7 +44,7 @@ pub enum Direction {
 /// ```
 ///
 /// 所有 `add_*` 返回 `&mut Self`，可链式调用；`render()` 可重复调用，结果内部
-/// 缓存（等价 PHP 的 `$rendered` 标志），无变更时不再重绘。
+/// 缓存，无变更时不再重绘。
 pub struct PosterBuilder {
     width: Option<u32>,
     height: Option<u32>,
@@ -68,7 +68,7 @@ impl Default for PosterBuilder {
             elements: Vec::new(),
             template: None,
             vars: BTreeMap::new(),
-            // 默认 true = 模板整体替换手写元素（PHP 的历史行为）
+            // 默认 true = 模板整体替换手写元素
             replace_elements: true,
             bg_color: None,
             bg_image: None,
@@ -102,7 +102,7 @@ impl PosterBuilder {
 
     /// 背景：`#RRGGBB` 之类色值，或存在的图片路径（图片自动裁剪铺满）。
     ///
-    /// 与 PHP 一致：不认识的值直接忽略。三种背景的优先级是渐变 > 图片 > 纯色。
+    /// 不认识的值直接忽略。三种背景的优先级是渐变 > 图片 > 纯色。
     pub fn background(&mut self, color_or_path: &str) -> &mut Self {
         self.invalidate();
         if is_hex_color(color_or_path) {
@@ -113,7 +113,7 @@ impl PosterBuilder {
         self
     }
 
-    /// 渐变背景（8px 一档色带近似，同 PHP）。
+    /// 渐变背景（8px 一档色带近似）。
     pub fn background_gradient(&mut self, from: &str, to: &str, direction: Direction) -> &mut Self {
         self.invalidate();
         self.gradient = Some((from.to_string(), to.to_string(), direction));
@@ -284,7 +284,7 @@ impl PosterBuilder {
         self
     }
 
-    /// 设置模板变量（整体替换，同 PHP 的 `with()`）。
+    /// 设置模板变量（整体替换）。
     pub fn with<I, K, V>(&mut self, variables: I) -> &mut Self
     where
         I: IntoIterator<Item = (K, V)>,
@@ -324,7 +324,7 @@ impl PosterBuilder {
 
     /// 渲染成画布。
     ///
-    /// 无变更时命中缓存（同 PHP 的 `$rendered` 标志），只克隆一次已有画布；
+    /// 无变更时命中缓存，只克隆一次已有画布；
     /// **返回的是缓存画布的副本**，改动它不影响后续调用。任何变更方法
     /// （`width`/`height`/背景/`add_*`/`with` 等）都会作废缓存。
     pub fn render(&self) -> Result<ImageDriver> {
@@ -395,7 +395,7 @@ impl PosterBuilder {
 
     /// 元素列表：模板按替换 / 追加语义展开（尚未做变量替换）。
     ///
-    /// 替换语义只在设了模板时生效，同 PHP——没模板时手写元素照样参与渲染。
+    /// 替换语义只在设了模板时生效——没模板时手写元素照样参与渲染。
     fn assemble(&self) -> Vec<Element> {
         let mut elements = if self.template.is_some() && self.replace_elements {
             Vec::new()
@@ -419,7 +419,7 @@ impl PosterBuilder {
         Ok(elements)
     }
 
-    /// 背景画布：渐变 > 图片 > 纯色（同 PHP 的优先级）。
+    /// 背景画布：渐变 > 图片 > 纯色。
     fn background_canvas(&self, width: u32, height: u32) -> Result<ImageDriver> {
         if let Some((from, to, direction)) = &self.gradient {
             return gradient_canvas(width, height, from, to, *direction);
@@ -431,13 +431,13 @@ impl PosterBuilder {
     }
 }
 
-/// PHP 的 `preg_match('/^#?[0-9a-fA-F]{3,8}$/')`。
+/// 合法色值：可选 `#` 前缀 + 3-8 位十六进制。
 fn is_hex_color(value: &str) -> bool {
     let hex = value.strip_prefix('#').unwrap_or(value);
     (3..=8).contains(&hex.len()) && hex.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
-/// 渐变背景：8px 一档色带近似线性渐变（同 PHP，比逐像素快得多）。
+/// 渐变背景：8px 一档色带近似线性渐变（比逐像素快得多）。
 fn gradient_canvas(
     width: u32,
     height: u32,
@@ -455,7 +455,7 @@ fn gradient_canvas(
     let mut canvas = ImageDriver::create(width, height)?;
     let mut offset = 0;
     while offset < steps {
-        // 取色带中点比例（同 PHP），避免首末档偏色
+        // 取色带中点比例，避免首末档偏色
         let ratio = (offset as f32 + band as f32 / 2.0) / steps.saturating_sub(1).max(1) as f32;
         let length = band.min(steps - offset);
         let options = ShapeOptions {
@@ -474,7 +474,7 @@ fn gradient_canvas(
     Ok(canvas)
 }
 
-/// 按比例混色 → `#RRGGBB`（`as u8` 截断，同 PHP 的 `intval()`）。
+/// 按比例混色 → `#RRGGBB`（`as u8` 截断）。
 fn mix(from: Rgba<u8>, to: Rgba<u8>, ratio: f32) -> String {
     let channel = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * ratio) as u8;
     format!(
@@ -485,9 +485,7 @@ fn mix(from: Rgba<u8>, to: Rgba<u8>, ratio: f32) -> String {
     )
 }
 
-/// 背景图铺满画布：等比放大到覆盖后再居中裁剪。
-///
-/// 与 PHP 的差异：PHP 直接拉伸变形，这里用 cover 保持比例（见交付说明）。
+/// 背景图铺满画布：等比放大到覆盖后再居中裁剪（cover），不直接拉伸变形。
 fn cover(path: &Path, width: u32, height: u32) -> Result<ImageDriver> {
     let mut background = ImageDriver::load(path)?;
     let (source_width, source_height) = background.size();

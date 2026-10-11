@@ -1,4 +1,4 @@
-//! 形状元素，对应 PHP `ShapeElement`：矩形与圆。
+//! 形状元素：矩形与圆。
 
 use serde::{Deserialize, Serialize};
 
@@ -9,8 +9,8 @@ use super::{ElementRender, RenderCtx, positive};
 
 /// 矩形 / 圆形。
 ///
-/// `shape` 非 `circle` 一律按矩形画（同 PHP 的 `else` 分支）。`radius` 一把键两用：
-/// 画圆时是半径、画矩形时是圆角——与 PHP 一致（两边都从同一个选项键取值）。
+/// `shape` 非 `circle` 一律按矩形画。`radius` 一把键两用：
+/// 画圆时是半径、画矩形时是圆角——两边都从同一个选项键取值。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ShapeElement {

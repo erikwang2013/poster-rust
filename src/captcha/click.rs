@@ -1,4 +1,4 @@
-//! 点击验证码，对应 PHP `ClickCaptcha`。
+//! 点击验证码。
 //!
 //! 难度决定目标个数（easy 2 / medium 3 / hard 4）；目标按「槽位网格 + 整体随机平移」布点，
 //! 两两间距 >= 2×容差，保证任意点最多落进一个目标的容差圆；画布装不下直接报错而不是静默退化。
@@ -16,16 +16,16 @@ use crate::error::{PosterError, Result};
 
 use super::{Base, CaptchaBuilder, CaptchaResult, CaptchaType, Difficulty, TargetType};
 
-/// 字体目标字号（同 PHP）。
+/// 字体目标字号。
 const TEXT_SIZE: f32 = 16.0;
-/// 图标外接尺寸（同 PHP）。
+/// 图标外接尺寸。
 const ICON_SIZE: i32 = 22;
-/// 图标画布留白：旋转后的外接尺寸（同 PHP `+6`）。
+/// 图标画布留白：旋转后的外接尺寸留 6px 余量。
 const ICON_PADDING: u32 = 6;
-/// 提示缩略图的中性色：用画布上的随机色等于把目标颜色告诉攻击者（PHP `THUMB_COLOR`）。
+/// 提示缩略图的中性色：用画布上的随机色等于把目标颜色告诉攻击者。
 const THUMB_COLOR: &str = "#37474F";
 
-/// 图标形状，全部由驱动图元现画（PHP `ClickCaptcha::SHAPES`）。
+/// 图标形状，全部由驱动图元现画。
 const SHAPES: [&str; 11] = [
     "circle",
     "ring",
@@ -127,7 +127,7 @@ fn target_json(target: &Target) -> Value {
     })
 }
 
-/// 目标布点：槽位网格 + 整体随机平移，两两间距恒定（同 PHP `placeTargets()`）。
+/// 目标布点：槽位网格 + 整体随机平移，两两间距恒定。
 fn place_targets(
     base: &Base,
     count: usize,
@@ -178,7 +178,7 @@ fn place_targets(
         .collect())
 }
 
-/// 报给调用方的最小画布尺寸（正方形估算，仅用于错误提示，同 PHP `minimumCanvas()`）。
+/// 报给调用方的最小画布尺寸（正方形估算，仅用于错误提示）。
 fn minimum_canvas(cols: usize, rows: usize, spacing: f32) -> String {
     let need_w = (cols - 1) as f32 * spacing + spacing / 3.0;
     let need_h = (rows - 1) as f32 * spacing + spacing / 3.0;
@@ -196,7 +196,7 @@ fn target_pool(
     let mut pool: Vec<String> = if target_type == TargetType::Icon {
         SHAPES.iter().map(|s| (*s).to_string()).collect()
     } else {
-        // 空数组走到兜底（PHP 用 ?: 而非 ??，避免取模除零）
+        // 空数组走到兜底（避免取模除零）
         words
             .filter(|w| !w.is_empty())
             .or_else(|| {
@@ -247,7 +247,7 @@ fn render_icon(shape: &str, color: &str, angle: i32) -> Result<ImageDriver> {
     Ok(icon)
 }
 
-/// 图元画出的形状，中心 `(cx, cy)`，`size` 为外接尺寸（同 PHP `drawShape()`）。
+/// 图元画出的形状，中心 `(cx, cy)`，`size` 为外接尺寸。
 fn draw_shape(
     canvas: &mut ImageDriver,
     shape: &str,
@@ -329,7 +329,7 @@ fn draw_shape(
     Ok(())
 }
 
-/// 目标之上的补噪点：打断「按颜色阈值分离目标 → 直接读出坐标」的还原路径（PHP `drawOverlayNoise`）。
+/// 目标之上的补噪点：打断「按颜色阈值分离目标 → 直接读出坐标」的还原路径。
 fn draw_overlay_noise(bg: &mut ImageDriver, targets: &[Target]) -> Result<()> {
     let mut rng = rand::rng();
     for target in targets {
@@ -364,7 +364,7 @@ fn draw_overlay_noise(bg: &mut ImageDriver, targets: &[Target]) -> Result<()> {
     Ok(())
 }
 
-/// 随机色相 / 明度：恒定色会被按颜色分离精确还原坐标（PHP `randomTargetColor()`）。
+/// 随机色相 / 明度：恒定色会被按颜色分离精确还原坐标。
 fn random_target_color() -> String {
     let mut rng = rand::rng();
     let hue = rng.random_range(0..=359) as f32 / 60.0;

@@ -1,6 +1,6 @@
 //! 文件存储：key → `{目录}/{安全化 key}.json`。
 //!
-//! 并发约定（同 PHP 版 `FileStorage`）：
+//! 并发约定：
 //! - 写：同目录临时文件 + `rename()` 原子替换，读方只会看到完整旧内容或完整新内容；
 //! - `set` / `increment` / `increment_or_init` 都是读改写，进程内用互斥锁串行化
 //!   （见下方 `ponytail` 注）。
@@ -44,7 +44,7 @@ pub struct FileStorage {
     dir: PathBuf,
     /// 读改写（`set` / `increment*`）的进程内串行锁；`Arc<FileStorage>` 被多线程共享时即生效。
     ///
-    /// ponytail: 只覆盖进程内并发，多进程共享同一目录仍可能丢计数（PHP 版用 flock 跨进程）。
+    /// ponytail: 只覆盖进程内并发，多进程共享同一目录仍可能丢计数。
     /// 多进程 / 多机部署请用 `RedisStorage`（INCR 原子）。
     lock: Mutex<()>,
     /// `set` 次数，驱动摊还扫描。
@@ -206,7 +206,7 @@ impl Storage for FileStorage {
         }
         let record = Record {
             v: b64_encode(value),
-            a: 0, // set 重置计数（同 PHP）
+            a: 0, // set 重置计数
             e: expiry_of(ttl),
         };
         self.write_record(&path, &record)

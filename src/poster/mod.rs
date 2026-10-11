@@ -1,4 +1,4 @@
-//! 海报：链式 Builder + 模板 + 14 种元素，对应 PHP `src/Poster/`。
+//! 海报：链式 Builder + 模板 + 14 种元素。
 //!
 //! ```no_run
 //! use poster::poster::{PosterBuilder, elements::text::TextElement};

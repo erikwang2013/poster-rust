@@ -1,4 +1,4 @@
-//! 头像元素，对应 PHP `AvatarElement`：正方形缩放 + 圆形裁剪 + 边框。
+//! 头像元素：正方形缩放 + 圆形裁剪 + 边框。
 
 use serde::{Deserialize, Serialize};
 

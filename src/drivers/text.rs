@@ -1,8 +1,8 @@
 //! TTF 文字：测量、自动换行（CJK 逐字 / 拉丁按词）、绘制（含旋转）。
 //!
-//! 对应 PHP 版 `Drivers/TextTrait` + `GdDriver::text()`：
-//! - 换行规则一致：含 CJK 按字符切、否则按空白切词；断点用累加宽度，行尾用整行实测校正。
-//! - `y` 是基线位置（同 `imagettftext`），`align` 时 `x` 是中/右锚点。
+//! 实现要点：
+//! - 换行规则：含 CJK 按字符切、否则按空白切词；断点用累加宽度，行尾用整行实测校正。
+//! - `y` 是基线位置，`align` 时 `x` 是中/右锚点。
 //!
 //! 绘制带一层整行缓存：同一字体实例上 `(text, size, color, angle)` 相同的行只光栅化一次
 //! （水印/描边艺术字会重复画同一行几十次）。命中与未命中的像素**逐字节一致**：
@@ -96,7 +96,7 @@ struct LineCache {
     bytes: usize,
 }
 
-/// 行高缺省比例，与 PHP 一致：`size * 1.5`。
+/// 行高缺省比例：`size * 1.5`。
 pub const DEFAULT_LINE_HEIGHT_RATIO: f32 = 1.5;
 
 impl Font {
@@ -145,23 +145,23 @@ impl Font {
             .map_err(|e| PosterError::Font(format!("字体解析失败: {e}")))
     }
 
-    /// PHP 的 `size` 到 ab_glyph `PxScale` 的换算系数。
+    /// `size` 到 ab_glyph `PxScale` 的换算系数。
     ///
     /// 两处口径差一次校正：
-    /// 1. PHP `imagettftext($size)` 的 size 是**磅**，96 dpi 下 1 磅 = 4/3 像素；
+    /// 1. `size` 是**磅**，96 dpi 下 1 磅 = 4/3 像素；
     /// 2. ab_glyph 的 `PxScale` 按「行高」（ascent−descent）而非 em 缩放。
     ///
-    /// 于是同数值 `size` 在 Rust 与 PHP 的视觉大小一致（与 PHP 版对拍实测：size=48
-    /// 的「海报Ag」墨迹高均约 65px）。
-    fn gd_scale(&self) -> f32 {
+    /// 于是同数值 `size` 的视觉大小与字号约定一致（实测：size=48
+    /// 的「海报Ag」墨迹高约 65px）。
+    fn scale_factor(&self) -> f32 {
         // 字体未声明 unitsPerEm 的罕见情况按 1000 兜底（TrueType 惯例值）
         let upem = self.inner.units_per_em().unwrap_or(1000.0);
         (96.0 / 72.0) * (self.inner.height_unscaled() / upem)
     }
 
-    /// 把 PHP 口径的 size 换算成 ab_glyph 的像素尺度。
+    /// 把字号换算成 ab_glyph 的像素尺度。
     fn px_scale(&self, size: f32) -> PxScale {
-        PxScale::from(size * self.gd_scale())
+        PxScale::from(size * self.scale_factor())
     }
 
     /// 单行文本的推进宽度（px）。
@@ -475,7 +475,7 @@ fn paint(img: &mut RgbaImage, px: u32, py: u32, color: Rgba<u8>, coverage: f32) 
     img.put_pixel(px, py, weighted_sum(pixel, color, 1.0 - coverage, coverage));
 }
 
-/// 切分换行 token：含 CJK / 假名 / 谚文逐字，否则按空白切词（保留空白 token，与 PHP 一致）。
+/// 切分换行 token：含 CJK / 假名 / 谚文逐字，否则按空白切词（保留空白 token）。
 fn split_tokens(text: &str) -> Vec<String> {
     if text.chars().any(is_cjk) {
         return text.chars().map(|c| c.to_string()).collect();
@@ -527,9 +527,9 @@ mod tests {
     }
 
     #[test]
-    fn gd_size_calibration_matches_php() {
-        // 与 PHP 版对拍：imagettftext($size=48) 的「海报Ag」墨迹高 65px、y 68..132
-        // （本机 PHP 8.5 + Alibaba PuHuiTi 实测）。改字体或改换算系数时这里会先红。
+    fn size_calibration_matches_reference_metrics() {
+        // 字号换算校准基准（size=48「海报Ag」墨迹高 65px、y 68..132，随包字体实测）。
+        // 改字体或换算系数时这里会先红。
         let f = test_font();
         let mut canvas = image::RgbaImage::from_pixel(700, 220, Rgba([255, 255, 255, 255]));
         f.draw_line(
@@ -551,8 +551,8 @@ mod tests {
                 max_y = max_y.max(y as i32);
             }
         }
-        assert_eq!(max_y - min_y + 1, 65, "墨迹高应与 PHP 一致（65px）");
-        assert_eq!((min_y, max_y), (68, 132), "基线位置也应与 PHP 一致");
+        assert_eq!(max_y - min_y + 1, 65, "墨迹高应与校准基准一致（65px）");
+        assert_eq!((min_y, max_y), (68, 132), "基线位置也应与校准基准一致");
     }
 
     #[test]

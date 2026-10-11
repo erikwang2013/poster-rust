@@ -1,4 +1,4 @@
-//! 会话 / 账号级固定窗口限流（跨 key 生效），对应 PHP `RateLimiter`。
+//! 会话 / 账号级固定窗口限流（跨 key 生效）。
 //!
 //! 单 key 的 `captcha.max_attempts` 只按 key 计数，挡不住「每次先领新 key 再猜一次」的盲猜：
 //! slider 固定猜某个 x、rotate 固定猜某个角度，命中率 = 命中区间 / 参数空间，与 key 数无关。
@@ -9,7 +9,7 @@
 //! 键的创建 + 自增走 `Storage::increment_or_init()` 一次原子操作，没有「读到旧窗口 → 覆写 →
 //! 自增」三步里的并发突刺（两次 `set` 之间读到的计数会互相覆盖）。
 //!
-//! `max <= 0` 或 `window_secs == 0` 视为关闭限流（全量放行，同 PHP）。
+//! `max <= 0` 或 `window_secs == 0` 视为关闭限流（全量放行）。
 
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hash, Hasher};
@@ -20,7 +20,7 @@ use crate::config::RateLimitOptions;
 use crate::error::Result;
 use crate::storage::{Storage, now_secs};
 
-/// 计数键前缀（同 PHP `RateLimiter::KEY_PREFIX`）。
+/// 计数键前缀。
 pub(crate) const KEY_PREFIX: &str = "rate:";
 
 /// 进程级哈希种子。
@@ -33,7 +33,7 @@ static HASH_STATE: OnceLock<RandomState> = OnceLock::new();
 /// 记录一次校验尝试。
 ///
 /// `Ok(false)` = 本窗口内已超限，调用方应直接判失败。
-/// 存储故障会以 `Err` 上抛（PHP 版一律吞成 `false`；Rust 侧让部署问题可见），
+/// 存储故障会以 `Err` 上抛（让部署问题可见），
 /// 但「计数不可用」这类**语义**状态仍然失败关闭，不会放行。
 pub(crate) fn allow(
     config: &RateLimitOptions,
@@ -57,7 +57,7 @@ pub(crate) fn allow(
     Ok(count <= config.max as u64)
 }
 
-/// 身份 → 定长计数键。用进程级 `RandomState`（随机种子的 SipHash-1-3）等价 PHP 的 `md5($identity)`：
+/// 身份 → 定长计数键。用进程级 `RandomState`（随机种子的 SipHash-1-3）：
 /// 只为定长，不为抗碰撞——但要防「可离线复算」。
 fn hash_identity(identity: &str) -> u64 {
     let mut hasher = HASH_STATE.get_or_init(RandomState::new).build_hasher();

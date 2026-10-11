@@ -1,4 +1,4 @@
-//! 二维码：`qrcode` crate 封装（PHP 版是自研纯 PHP 生成器，Rust 侧直接复用成熟 crate）。
+//! 二维码：`qrcode` crate 封装（成熟 crate 直接复用，不自研生成器）。
 //!
 //! 输出为像素级可控的画布：模块按整数倍缩放绘制，边缘锐利；支持模块静区、颜色自定义。
 
@@ -10,7 +10,7 @@ use crate::drivers::canvas::ImageDriver;
 use crate::drivers::color;
 use crate::error::{PosterError, Result};
 
-/// 纠错级别，对应 PHP 生成器的 L/M/Q/H。
+/// 纠错级别 L/M/Q/H（QR 标准）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]

@@ -1,9 +1,9 @@
-//! 画布：`image` crate 驱动的像素操作，方法面对应 PHP `GdDriver`。
+//! 画布：`image` crate 驱动的像素操作，纯 Rust、无系统依赖。
 //!
-//! 语义对齐要点（与 PHP 版逐项一致）：
+//! 语义要点：
 //! - `rectangle(x, y, w, h)` 覆盖 `[x, x+w) × [y, y+h)`；圆角仅在 `filled = true` 生效
-//! - `mask()` 在掩膜「透明度过半」处擦除目标像素（GD alpha >= 64 的等价）
-//! - `rotate()` 正角度顺时针（PHP `imagerotate(-$angle)`），画布自动扩展
+//! - `mask()` 在掩膜「透明度过半」处擦除目标像素（alpha >= 128）
+//! - `rotate()` 正角度顺时针，画布自动扩展
 //! - `save()`/`output()` 的质量缺省取配置：PNG 用 `poster.png_compression`，其余用 `image.quality`
 
 use std::collections::HashMap;
@@ -21,7 +21,7 @@ use crate::drivers::text::{self, Font};
 use crate::drivers::{LineOptions, OverlayOptions, ShapeOptions, TextAlign, TextOptions, color};
 use crate::error::{PosterError, Result};
 
-/// 像素预算（与 PHP 无 memory_limit 时的历史阈值一致）。
+/// 画布像素预算：4000 万像素。
 ///
 /// `pub(crate)`：`text.rs` 的旋转临时画布与元素几何上限（`elements::MAX_DIM`）共用同一数值。
 pub(crate) const MAX_PIXELS: u64 = 40_000_000;
@@ -185,7 +185,7 @@ impl ImageDriver {
 
     // ── 绘制 ──────────────────────────────────────────────
 
-    /// 文字；`(x, y)` 为基线锚点，选项同 PHP `text()`。
+    /// 文字；`(x, y)` 为基线锚点。
     pub fn text(&mut self, text: &str, x: f32, y: f32, opts: &TextOptions) -> Result<()> {
         let font_path = Self::resolve_font_path(opts.font.as_deref());
         let Self { img, fonts } = self;
@@ -222,7 +222,7 @@ impl ImageDriver {
         Ok(())
     }
 
-    /// 叠加图片（缩放 → 圆角 → 阴影 → 合成），选项同 PHP `image()`。
+    /// 叠加图片（缩放 → 圆角 → 阴影 → 合成）。
     pub fn overlay(
         &mut self,
         ov: &ImageDriver,
@@ -236,7 +236,7 @@ impl ImageDriver {
         );
         guard_size(dw, dh)?;
 
-        // 先缩到目标尺寸再做圆角/阴影（与 PHP 一致，代价按目标像素算）
+        // 先缩到目标尺寸再做圆角/阴影（代价按目标像素算）
         let mut src = ov.img.clone();
         if (dw, dh) != (ov.width(), ov.height()) {
             src = image::imageops::resize(&src, dw, dh, image::imageops::FilterType::Triangle);
@@ -322,8 +322,8 @@ impl ImageDriver {
         Ok(())
     }
 
-    /// 饼形扇区（角度：0 = 三点钟方向，顺时针增加，同 GD）。
-    #[allow(clippy::too_many_arguments)] // 坐标 + 起止角 + 选项，与 GD imagefilledarc 同形
+    /// 饼形扇区（角度：0 = 三点钟方向，顺时针增加）。
+    #[allow(clippy::too_many_arguments)] // 坐标 + 起止角 + 选项，参数个数由接口形状决定
     pub fn filled_arc(
         &mut self,
         cx: i32,
@@ -381,7 +381,7 @@ impl ImageDriver {
         Ok(())
     }
 
-    /// 按掩膜裁剪：掩膜透明度过半处，目标像素置空（同 PHP mask 语义）。
+    /// 按掩膜裁剪：掩膜透明度过半处，目标像素置空。
     pub fn mask(&mut self, mask: &ImageDriver) {
         let w = self.width().min(mask.width());
         let h = self.height().min(mask.height());
@@ -394,7 +394,7 @@ impl ImageDriver {
         }
     }
 
-    /// 高斯模糊（大半径走 1/4 降采样路径，同 PHP 的性能策略）。
+    /// 高斯模糊（大半径走 1/4 降采样路径）。
     pub fn blur(&mut self, radius: u32) {
         if radius < 1 {
             return;
@@ -413,7 +413,7 @@ impl ImageDriver {
         self.img = image::imageops::resize(&small, w, h, image::imageops::FilterType::Triangle);
     }
 
-    /// 锐化：3×3 卷积核，中心 `4a+1`、四邻 `-a`（同 PHP 的 imageconvolution 参数）。
+    /// 锐化：3×3 卷积核，中心 `4a+1`、四邻 `-a`。
     pub fn sharpen(&mut self, amount: f32) {
         let a = amount.clamp(0.0, 3.0);
         if a == 0.0 {
@@ -448,7 +448,7 @@ impl ImageDriver {
         Ok(())
     }
 
-    /// 编码为 base64 data URI（同 PHP `output()`）。
+    /// 编码为 base64 data URI。
     pub fn output(&self, format: &str, quality: Option<u8>) -> Result<String> {
         use base64::Engine;
         let format = normalize_format(Some(format));
@@ -468,7 +468,7 @@ impl ImageDriver {
         match format.as_str() {
             "png" => {
                 let level = match quality {
-                    // 显式 quality 仍是 0-100，按「质量越高压缩越少」映射到 0-9（同 PHP）
+                    // 显式 quality 仍是 0-100，按「质量越高压缩越少」映射到 0-9
                     Some(q) => ((100 - q.min(100)) as f32 * 9.0 / 100.0).round() as u8,
                     None => cfg.poster.png_compression,
                 };
@@ -517,7 +517,7 @@ impl ImageDriver {
 
     // ── 内部 ──────────────────────────────────────────────
 
-    /// 阴影：1/4 降采样画实心块 → 模糊 → 放大上色合成（同 PHP `drawShadowGD` 策略）。
+    /// 阴影：1/4 降采样画实心块 → 模糊 → 放大上色合成。
     fn draw_shadow(
         &mut self,
         shadow: &crate::drivers::ShadowOptions,
@@ -587,7 +587,7 @@ fn guard_size(width: u32, height: u32) -> Result<()> {
 /// `alpha/255 >= 1` 仅当 alpha == 255（254/255 严格小于 1）。
 // ponytail: 半透明像素仍是标量 f32（每像素 3 次除/乘/round），未向量化
 // （std::simd 未稳定）；若半透明大图叠加成为瓶颈，再考虑整数定点混合，
-// 但那会改变舍入口径、需要重新对齐 PHP 的逐像素结果。
+// 但那会改变舍入口径，需要重新校准逐像素结果。
 #[inline]
 fn blend_pixel(dst: &mut [u8], src: &[u8]) {
     let a = src[3];
@@ -967,7 +967,7 @@ fn blend_overlay(dst: &mut RgbaImage, src: &RgbaImage, x: i64, y: i64) {
     }
 }
 
-/// 旋转并扩展画布：正角度顺时针（同 PHP `imagerotate(-$angle)`），逆映射 + 双线性采样。
+/// 旋转并扩展画布：正角度顺时针，逆映射 + 双线性采样。
 fn rotate_image(src: &RgbaImage, angle_deg: f32, bg: Rgba<u8>) -> RgbaImage {
     let (sw, sh) = (src.width() as f32, src.height() as f32);
     let rad = angle_deg.to_radians();

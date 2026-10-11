@@ -1,4 +1,4 @@
-//! 日历元素，对应 PHP `CalendarElement`：月历网格 + 今天 / 自定义高亮。
+//! 日历元素：月历网格 + 今天 / 自定义高亮。
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -16,7 +16,7 @@ use super::{ElementRender, RenderCtx, bounded, cell_text, positive};
 /// 日历。
 ///
 /// `highlights` 为 `日期 => 文案` 或 `日期 => {"text": ..., "bg": ...}`，
-/// 键形如 `2026-10-06`（同 PHP）。
+/// 键形如 `2026-10-06`。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct CalendarElement {
@@ -277,7 +277,7 @@ fn stroke(color: &str) -> ShapeOptions {
     }
 }
 
-/// 当月天数（PHP `date('t')`）。
+/// 当月天数。
 fn days_in_month(year: i32, month: u32) -> u32 {
     match month {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,

@@ -1,4 +1,4 @@
-//! 图片元素，对应 PHP `ImageElement`：`src` + 叠加选项。
+//! 图片元素：`src` + 叠加选项。
 
 use serde::{Deserialize, Serialize};
 
@@ -30,7 +30,7 @@ impl ElementRender for ImageElement {
         let Some(img) = load_image(ctx, &self.src)? else {
             return Ok(());
         };
-        // 尺寸兜底：<= 0 的 width/height 会让缩放静默什么都不画（PHP 同）
+        // 尺寸兜底：<= 0 的 width/height 会让缩放静默什么都不画
         if let Some(width) = self.style.width {
             positive(width, "width")?;
         }

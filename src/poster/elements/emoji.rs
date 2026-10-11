@@ -1,4 +1,4 @@
-//! Emoji 元素，对应 PHP `EmojiElement`：按系统 emoji 字体绘制，找不到则退回普通文字。
+//! Emoji 元素：按系统 emoji 字体绘制，找不到则退回普通文字。
 
 use std::path::{Path, PathBuf};
 
@@ -10,7 +10,7 @@ use crate::error::Result;
 
 use super::{ElementRender, RenderCtx, codepoint_char};
 
-/// 常见系统的 emoji 字体路径（与 PHP 版逐条一致）。
+/// 常见系统的 emoji 字体路径。
 const EMOJI_FONT_PATHS: [&str; 3] = [
     "/System/Library/Fonts/Apple Color Emoji.ttc",
     "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
@@ -20,7 +20,7 @@ const EMOJI_FONT_PATHS: [&str; 3] = [
 /// Emoji。
 ///
 /// `emoji` 为空时用 `codepoint`（`U+1F600` / `1F600` / `0x1F600` / 十进制整数）。
-/// 本元素的 `font` 选项**不回落配置字体**：不是文件就去找系统 emoji 字体（同 PHP）。
+/// 本元素的 `font` 选项**不回落配置字体**：不是文件就去找系统 emoji 字体。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct EmojiElement {
@@ -74,7 +74,7 @@ impl ElementRender for EmojiElement {
             .or_else(find_emoji_font);
 
         let Some(font) = emoji_font else {
-            // 没有 emoji 字体：退回普通文字（PHP 此分支同样忽略 color，硬编码黑色）
+            // 没有 emoji 字体：退回普通文字（此分支忽略 color，硬编码黑色）
             return canvas.text(
                 &ch,
                 self.x as f32,

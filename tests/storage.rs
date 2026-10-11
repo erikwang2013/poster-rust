@@ -75,7 +75,7 @@ fn file_round_trip_and_ttl() {
     assert_eq!(storage.get("k").unwrap().unwrap().value, b"value");
     assert_eq!(storage.increment("k").unwrap(), Some(1));
     assert_eq!(storage.increment("k").unwrap(), Some(2));
-    // 重新 set 重置计数（同 PHP）
+    // 重新 set 重置计数
     storage.set("k", b"value2", Duration::from_secs(60)).unwrap();
     assert_eq!(storage.increment("k").unwrap(), Some(1));
 

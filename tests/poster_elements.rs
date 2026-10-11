@@ -362,7 +362,7 @@ fn icon_falls_back_to_placeholder_text() {
         size: 32,
         ..Default::default()
     });
-    // 没有 FontAwesome 字体时画 `[heart]` 占位（同 PHP）
+    // 没有 FontAwesome 字体时画 `[heart]` 占位
     assert!(painted(&paint(&element)), "无图标字体时应画占位文字");
     assert_eq!(
         poster::poster::elements::icon::icon_char("heart"),

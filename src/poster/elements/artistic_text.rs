@@ -1,4 +1,4 @@
-//! 艺术字元素，对应 PHP `ArtisticTextElement`：描边 / 阴影 / 渐变 / 霓虹四种样式。
+//! 艺术字元素：描边 / 阴影 / 渐变 / 霓虹四种样式。
 
 use std::path::PathBuf;
 
@@ -18,7 +18,7 @@ const MAX_STROKE_WIDTH: u32 = 64;
 
 /// 艺术字。
 ///
-/// `style` 未知时按普通文字画（同 PHP 的 `switch` 兜底分支，不再报错）。
+/// `style` 未知时按普通文字画（兜底分支，不报错）。
 /// 各样式只在用到时读取自己的键：`strokeColor` / `shadowOffsetX` / `color2` / `glowColor`…
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -191,7 +191,7 @@ impl ArtisticTextElement {
         base: &TextOptions,
     ) -> Result<()> {
         let font_path = config::resolve_font(ctx.config, self.font.as_deref());
-        // 字体缺失时退回普通文字（同 PHP 的 `!is_file($font)` 分支）
+        // 字体缺失时退回普通文字
         if !font_path.is_file() {
             return canvas.text(&self.text, self.x as f32, self.y as f32, base);
         }
@@ -205,7 +205,7 @@ impl ArtisticTextElement {
             return Ok(());
         }
 
-        // 透明底上画白色文字掩膜（左右/上下各留 4px，同 PHP）
+        // 透明底上画白色文字掩膜（左右/上下各留 4px）
         let mut mask = RgbaImage::from_pixel(width, height, Rgba([0, 0, 0, 0]));
         font.draw_line(
             &mut mask,
@@ -217,7 +217,7 @@ impl ArtisticTextElement {
             0.0,
         )?;
 
-        // 按 y 逐行上色；只处理不透明度过半的像素（PHP 的 GD alpha < 64）
+        // 按 y 逐行上色；只处理不透明度过半的像素（alpha >= 128）
         let from = color::parse(&self.color)?;
         let to = color::parse(&self.color2)?;
         let last_row = height.saturating_sub(1).max(1) as f32;
@@ -243,7 +243,7 @@ impl ArtisticTextElement {
     }
 }
 
-/// 追加 alpha 后缀（PHP `$glowColor . dechex(20 * $i)`）；拼不出合法颜色时原样返回。
+/// 追加 alpha 后缀（两位十六进制）；拼不出合法颜色时原样返回。
 fn with_alpha(color: &str, alpha: u32) -> String {
     let candidate = format!("{color}{alpha:02x}");
     if color::parse(&candidate).is_ok() {

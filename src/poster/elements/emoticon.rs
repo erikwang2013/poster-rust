@@ -1,4 +1,4 @@
-//! 颜文字元素，对应 PHP `EmoticonElement`：表情名 → 颜文字字符串。
+//! 颜文字元素：表情名 → 颜文字字符串。
 
 use std::path::PathBuf;
 
@@ -9,7 +9,7 @@ use crate::error::Result;
 
 use super::{ElementRender, RenderCtx};
 
-/// 常用颜文字（与 PHP 的 `KAOMOJI` 逐条一致）。
+/// 常用颜文字。
 const KAOMOJI: [(&str, &str); 12] = [
     ("happy", "(｡•̀ᴗ-)✧"),
     ("love", "(♡°▽°♡)"),
@@ -28,7 +28,7 @@ const KAOMOJI: [(&str, &str); 12] = [
 /// 颜文字。
 ///
 /// `text` 优先；为空时用 `expression` 从 [`KAOMOJI`] 取。`font` 只认存在的文件，
-/// 否则用配置默认字体（同 PHP）。
+/// 否则用配置默认字体。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct EmoticonElement {
@@ -81,7 +81,7 @@ impl ElementRender for EmoticonElement {
     }
 }
 
-/// 预置表情名列表（PHP `EmoticonElement::expressions()`）。
+/// 预置表情名列表。
 pub fn expressions() -> Vec<&'static str> {
     KAOMOJI.iter().map(|(name, _)| *name).collect()
 }
@@ -99,7 +99,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn kaomoji_table_matches_php() {
+    fn kaomoji_table_is_complete() {
         assert_eq!(expressions().len(), 12);
         assert_eq!(kaomoji("shrug"), Some("¯\\_(ツ)_/¯"));
         assert_eq!(kaomoji("tableflip"), Some("(╯°□°）╯︵ ┻━┻"));

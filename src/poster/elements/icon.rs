@@ -1,4 +1,4 @@
-//! 图标元素，对应 PHP `IconElement`：FontAwesome 图标名 → 私有区码点。
+//! 图标元素：FontAwesome 图标名 → 私有区码点。
 
 use std::path::PathBuf;
 
@@ -10,7 +10,7 @@ use crate::error::Result;
 
 use super::{ElementRender, RenderCtx, codepoint_char};
 
-/// FontAwesome 5/6 常用图标的 Unicode 映射（与 PHP 的 `FA_ICONS` 逐条一致）。
+/// FontAwesome 5/6 常用图标的 Unicode 映射。
 const FA_ICONS: [(&str, char); 44] = [
     ("heart", '\u{F004}'),
     ("star", '\u{F005}'),
@@ -61,7 +61,7 @@ const FA_ICONS: [(&str, char); 44] = [
 /// 图标。
 ///
 /// `codepoint` 优先于 `icon`；两者都解析不出字符时跳过不绘制。`font` 须为存在的文件，
-/// 否则退回 `[icon]` 文字占位（同 PHP）。
+/// 否则退回 `[icon]` 文字占位。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct IconElement {
@@ -117,7 +117,7 @@ impl ElementRender for IconElement {
                     ..Default::default()
                 },
             ),
-            // 没有图标字体：画 `[icon]` 文字占位（同 PHP）
+            // 没有图标字体：画 `[icon]` 文字占位
             None => {
                 let placeholder = if self.icon.is_empty() {
                     "?".to_string()

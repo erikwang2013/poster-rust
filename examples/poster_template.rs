@@ -13,7 +13,7 @@ use poster::poster::{PosterBuilder, PosterTemplate};
 fn main() -> poster::Result<()> {
     let pet = assets::pet_path().to_string_lossy().into_owned();
 
-    // 模板：键名与 PHP 版逐字一致（snake_case 的 label_size、别名 headers…）
+    // 模板：键名保持 snake_case（label_size、别名 headers…）
     let template_json = json!({
         "width": 750,
         "height": 1000,
@@ -62,7 +62,7 @@ fn main() -> poster::Result<()> {
         println!("已生成 {}", path.display());
     }
 
-    // 导出模板（builder → JSON 文本），可存库或交给 PHP 版读取
+    // 导出模板（builder → JSON 文本），可存库或再读回
     let mut builder = PosterBuilder::new()?;
     builder.use_template(PosterTemplate::from_config(template_json.clone())?);
     let exported = builder.to_array();

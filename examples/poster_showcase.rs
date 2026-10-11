@@ -73,7 +73,7 @@ fn main() -> poster::Result<()> {
             "stroke",
             ArtisticTextElement {
                 x: 60,
-                y: 128,          // 字变准后（与 PHP 同口径）标题下移，避免贴顶
+                y: 128,          // 字号校准后标题下移，避免贴顶
                 size: 60.0,
                 color: "#FFFFFF".into(),
                 stroke_color: "#C2402F".into(),

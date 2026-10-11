@@ -1,4 +1,4 @@
-//! 图表元素，对应 PHP `ChartElement`：柱状 / 折线 / 饼图。
+//! 图表元素：柱状 / 折线 / 饼图。
 
 use std::path::{Path, PathBuf};
 
@@ -21,8 +21,8 @@ const DEFAULT_COLORS: [&str; 6] = [
 
 /// 图表。
 ///
-/// 子类型存在 `chart` 键（不是模板里的元素类型键 `type`），与 PHP 一致：
-/// 同一份 JSON 既能当模板元素定义，也能被 PHP 的元素 `toArray()` 还原。
+/// 子类型存在 `chart` 键（不是模板里的元素类型键 `type`）：
+/// 同一份 JSON 既能当模板元素定义，也能原样导出还原。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ChartElement {
@@ -57,7 +57,7 @@ impl Default for ChartElement {
 
 impl ElementRender for ChartElement {
     fn render(&self, canvas: &mut ImageDriver, ctx: &RenderCtx<'_>) -> Result<()> {
-        // `chart` 为元素类型名（模板里少写子类型）时按缺省柱状图处理，同 PHP
+        // `chart` 为元素类型名（模板里少写子类型）时按缺省柱状图处理
         let chart_type = if self.chart.is_empty() || self.chart == "chart" {
             "bar"
         } else {
@@ -347,7 +347,7 @@ fn label_opts(size: f32, color: &str, font: &Path) -> TextOptions {
     }
 }
 
-/// 数据项取值：对象取 `value`，标量直接用；非数值按 0（PHP 的数值强转语义）。
+/// 数据项取值：对象取 `value`，标量直接用；非数值按 0。
 fn value_of(item: &Value) -> f64 {
     let raw = match item {
         Value::Object(map) => map.get("value").cloned().unwrap_or(Value::Null),
@@ -360,7 +360,7 @@ fn value_of(item: &Value) -> f64 {
     }
 }
 
-/// 数据项标签：只对对象形式取 `label`（同 PHP）。
+/// 数据项标签：只对对象形式取 `label`。
 fn label_of(item: &Value) -> String {
     match item {
         Value::Object(map) => map.get("label").map(cell_text).unwrap_or_default(),
@@ -368,7 +368,7 @@ fn label_of(item: &Value) -> String {
     }
 }
 
-/// 最大值兜底：全 0 时用 1，避免除零（PHP 的 `?: 1`）。
+/// 最大值兜底：全 0 时用 1，避免除零。
 fn max_value(data: &[Value]) -> f64 {
     let max = data.iter().map(value_of).fold(f64::NEG_INFINITY, f64::max);
     if !max.is_finite() || max == 0.0 {
@@ -378,7 +378,7 @@ fn max_value(data: &[Value]) -> f64 {
     }
 }
 
-/// 数值标签文本：整数不带小数点（同 PHP 的 `(string)` 强转）。
+/// 数值标签文本：整数不带小数点。
 fn format_value(value: f64) -> String {
     if value.fract() == 0.0 && value.abs() < 1e15 {
         format!("{}", value as i64)

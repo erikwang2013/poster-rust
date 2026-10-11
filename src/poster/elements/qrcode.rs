@@ -1,4 +1,4 @@
-//! 二维码元素，对应 PHP `QrcodeElement`：码 + 可选中心 logo + 底部文案。
+//! 二维码元素：码 + 可选中心 logo + 底部文案。
 
 use std::path::Path;
 
@@ -11,13 +11,13 @@ use crate::qrcode::EcLevel;
 
 use super::{ElementRender, RenderCtx, positive};
 
-/// 二维码静区（模块数）；PHP `QrcodeGenerator` 默认 2。
+/// 二维码静区（模块数），取 2。
 const MARGIN_MODULES: u32 = 2;
 
 /// 二维码。
 ///
-/// `size` 是请求边长：PHP 版按模块数向下量化（实际略小），Rust 版按请求尺寸精确输出，
-/// 因此 `label` 的 y 用 `size` 定位（PHP 用实际量化高度）。
+/// `size` 是请求边长：按请求尺寸精确输出（不按模块数向下量化），
+/// 因此 `label` 的 y 直接用 `size` 定位。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct QrcodeElement {
@@ -33,7 +33,7 @@ pub struct QrcodeElement {
     pub logo: Option<String>,
     /// 码下方的文案；空 = 不画。
     pub label: Option<String>,
-    /// 文案字号（PHP 键名是 snake_case 的 `label_size`，此处保持一致）。
+    /// 文案字号（键名 snake_case 的 `label_size`）。
     #[serde(rename = "label_size")]
     pub label_size: u32,
     /// 文案颜色。

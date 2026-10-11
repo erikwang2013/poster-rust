@@ -1,4 +1,4 @@
-//! 直线元素，对应 PHP `LineElement`。
+//! 直线元素。
 
 use serde::{Deserialize, Serialize};
 
@@ -9,7 +9,7 @@ use super::{ElementRender, RenderCtx};
 
 /// 直线。
 ///
-/// 终点缺省回落到 `x` / `y`（PHP 的 `x2 ?? x ?? 100`、`y2 ?? y ?? 0`）。
+/// 终点缺省回落到 `x` / `y`（都没有时 x 取 100、y 取 0）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct LineElement {

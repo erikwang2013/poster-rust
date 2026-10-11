@@ -1,8 +1,8 @@
-//! 元素：选项结构、渲染 trait 与公共工具，对应 PHP `src/Poster/Elements/`。
+//! 元素：选项结构、渲染 trait 与公共工具。
 //!
 //! - [`Element`] 是 `#[serde(tag = "type")]` 的枚举（kebab-case 类型名），
-//!   各元素结构体的 JSON 键名与 PHP 版逐字一致（`maxWidth` / `offsetX` / `spacing_x`…），
-//!   因此 PHP 导出的模板 JSON 可以直接读入、Rust 导出的模板也能被 PHP 读回。
+//!   各元素结构体的 JSON 键名稳定（`maxWidth` / `offsetX` / `spacing_x`…），
+//!   旧模板 JSON 可以直接读入，导出的模板也能原样读回。
 //! - 渲染统一走 [`ElementRender`]，配置（默认字体、缺图占位）经 [`RenderCtx`] 传入。
 //! - 尺寸兜底、缺图占位、`{{var}}` 替换等公共逻辑在本模块，元素实现只管自己的算法。
 
@@ -43,9 +43,9 @@ pub trait ElementRender {
     fn render(&self, canvas: &mut ImageDriver, ctx: &RenderCtx<'_>) -> Result<()>;
 }
 
-/// 已知元素类型名（顺序与 PHP `ElementRegistry::TYPES` 一致）。
+/// 已知元素类型名。
 ///
-/// `artistictext` 与 `artistic-text` 是同一元素的别名（PHP 注册表如此）。
+/// `artistictext` 与 `artistic-text` 是同一元素的别名。
 pub const TYPES: [&str; 15] = [
     "text",
     "image",
@@ -79,7 +79,7 @@ pub enum Element {
     Table(table::TableElement),
     Chart(chart::ChartElement),
     Calendar(calendar::CalendarElement),
-    /// PHP 注册表里的别名 `artistictext` 同样接受。
+    /// 别名 `artistictext` 同样接受。
     #[serde(alias = "artistictext")]
     ArtisticText(artistic_text::ArtisticTextElement),
     Emoji(emoji::EmojiElement),
@@ -125,7 +125,7 @@ impl Element {
     }
 
     /// 注册表分发：`kind` 为类型名、`def` 为该元素的选项对象；
-    /// 定义里已有的 `type` 会被 `kind` 覆盖（同 PHP `ElementRegistry::create()`）。
+    /// 定义里已有的 `type` 会被 `kind` 覆盖。
     pub fn from_parts(kind: &str, def: Value) -> Result<Self> {
         let mut obj = match def {
             Value::Object(obj) => obj,
@@ -149,7 +149,7 @@ impl Element {
     /// 模板变量替换：递归替换元素所有字符串字段里的 `{{var}}`；变量缺失报错。
     ///
     /// 借 JSON 走一遍是为了覆盖表格 `rows`、图表 `data`、日历 `highlights`
-    /// 这类嵌套结构（PHP 的 `AbstractElement::resolveKeys` 逐个键声明，这里全量处理）。
+    /// 这类嵌套结构（逐个键声明容易漏，这里对全部字符串字段做替换）。
     pub fn resolve_vars(&mut self, vars: &BTreeMap<String, String>) -> Result<()> {
         if vars.is_empty() {
             return Ok(());
@@ -182,9 +182,9 @@ impl ElementRender for Element {
     }
 }
 
-// ── 公共工具（对应 PHP `AbstractElement` 的 protected 帮助方法）──────────
+// ── 公共工具（元素实现共用的帮助函数）──────────
 
-/// 尺寸兜底：`<= 0` 报错，不让非法值落进绘制路径（PHP `AbstractElement::positive()`）。
+/// 尺寸兜底：`<= 0` 报错，不让非法值落进绘制路径。
 pub fn positive(value: u32, key: &str) -> Result<u32> {
     if value == 0 {
         return Err(PosterError::Template(format!(
@@ -211,7 +211,7 @@ pub fn bounded(value: u32, key: &str) -> Result<u32> {
 
 /// 加载图片；文件缺失时回退 `config.poster.placeholder`（占位图也不存在则返回 `None`）。
 ///
-/// 对应 PHP `AbstractElement::loadImage()`：`None` 表示该元素跳过不绘制。
+/// `None` 表示该元素跳过不绘制。
 pub fn load_image(ctx: &RenderCtx<'_>, src: &str) -> Result<Option<ImageDriver>> {
     let path = Path::new(src);
     if path.is_file() {
@@ -230,7 +230,7 @@ pub fn load_image(ctx: &RenderCtx<'_>, src: &str) -> Result<Option<ImageDriver>>
     }
 }
 
-/// 对齐字符串 → [`TextAlign`]（未知值按 `left`，同 PHP 的 `match` 兜底分支）。
+/// 对齐字符串 → [`TextAlign`]（未知值按 `left`）。
 pub fn text_align(align: &str) -> TextAlign {
     match align {
         "center" => TextAlign::Center,
@@ -239,7 +239,7 @@ pub fn text_align(align: &str) -> TextAlign {
     }
 }
 
-/// 表格 / 图表 / 日历里的单元格取值 → 字符串（PHP 统一 `(string)` 强转）。
+/// 表格 / 图表 / 日历里的单元格取值 → 字符串（非字符串统一转字符串）。
 pub fn cell_text(value: &Value) -> String {
     match value {
         Value::String(s) => s.clone(),
@@ -250,7 +250,7 @@ pub fn cell_text(value: &Value) -> String {
 
 /// 码点值 → 字符：接受 `U+1F600` / `1F600` / `0x1F600` / `\u{1F600}` / 十进制整数。
 ///
-/// 对应 PHP 的 `mb_chr(hexdec(...))`：非法输入返回 `None`（PHP 返回空串）。
+/// 非法输入返回 `None`。
 pub fn codepoint_char(value: &Value) -> Option<char> {
     match value {
         Value::Number(n) => n.as_u64().and_then(|c| char::from_u32(c as u32)),
@@ -290,7 +290,7 @@ fn resolve_value(value: &mut Value, vars: &BTreeMap<String, String>) -> Result<(
     Ok(())
 }
 
-/// 字符串占位符替换：`{{ name }}`（名字支持 Unicode 字母数字与下划线，同 PHP 的 `\p{L}\p{N}_`）。
+/// 字符串占位符替换：`{{ name }}`（名字支持 Unicode 字母数字与下划线）。
 fn replace_placeholders(text: &str, vars: &BTreeMap<String, String>) -> Result<String> {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;

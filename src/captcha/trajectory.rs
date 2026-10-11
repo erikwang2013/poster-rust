@@ -1,4 +1,4 @@
-//! 行为轨迹校验（slider / rotate），对应 PHP `TrajectoryVerifier`。
+//! 行为轨迹校验（slider / rotate）。
 //!
 //! `captcha.trajectory.enabled` 默认关闭。开启后旧前端（只提交数值、不带轨迹）一律判失败，
 //! 属于有意的破坏性变更；灰度前请确认触屏 / 手写笔 / 无障碍工具 / 远程桌面等真实用户
