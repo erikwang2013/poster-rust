@@ -272,7 +272,10 @@ mod tests {
         assert!(check_slider(&payload, 96.0, 4.0));
         assert!(check_slider(&payload, 104.0, 4.0));
         assert!(!check_slider(&payload, 95.9, 4.0));
-        assert!(!check_slider(&json!({"x": "100"}), 100.0, 4.0), "非数值不算数");
+        assert!(
+            !check_slider(&json!({"x": "100"}), 100.0, 4.0),
+            "非数值不算数"
+        );
     }
 
     #[test]
@@ -306,19 +309,27 @@ mod tests {
             &payload,
             &Answer::SliderWithTrail {
                 x: 100.0,
-                trail: vec![(0.0, 0.0, 0.0), (5.0, 0.0, 150.0), (6.0, 1.0, 300.0), (30.0, 0.0, 450.0)],
+                trail: vec![
+                    (0.0, 0.0, 0.0),
+                    (5.0, 0.0, 150.0),
+                    (6.0, 1.0, 300.0),
+                    (30.0, 0.0, 450.0)
+                ],
                 duration_ms: 500,
             }
         ));
-        assert!(!check(
-            &config,
-            &payload,
-            &Answer::SliderWithTrail {
-                x: 100.0,
-                trail: vec![(0.0, 0.0, 0.0), (30.0, 0.0, 500.0)],
-                duration_ms: 500,
-            }
-        ), "点数不足");
+        assert!(
+            !check(
+                &config,
+                &payload,
+                &Answer::SliderWithTrail {
+                    x: 100.0,
+                    trail: vec![(0.0, 0.0, 0.0), (30.0, 0.0, 500.0)],
+                    duration_ms: 500,
+                }
+            ),
+            "点数不足"
+        );
     }
 
     #[test]
@@ -329,7 +340,11 @@ mod tests {
             &json!({"type": "click", "targets": []}),
             &Answer::Slider(1.0)
         ));
-        assert!(!check(&config, &json!({"type": "unknown"}), &Answer::Slider(1.0)));
+        assert!(!check(
+            &config,
+            &json!({"type": "unknown"}),
+            &Answer::Slider(1.0)
+        ));
         assert!(!check(&config, &json!({}), &Answer::Click(vec![])));
     }
 }

@@ -45,7 +45,10 @@ pub(crate) fn allow(
     }
 
     let window_index = now_secs() / config.window_secs;
-    let key = format!("{KEY_PREFIX}{:016x}:{window_index}", hash_identity(identity));
+    let key = format!(
+        "{KEY_PREFIX}{:016x}:{window_index}",
+        hash_identity(identity)
+    );
     let ttl = Duration::from_secs(config.window_secs);
 
     // 键不存在→创建为 1，存在→原子自增（窗口滚动即换键，无覆写竞态）。

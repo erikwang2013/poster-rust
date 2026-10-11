@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use crate::error::{PosterError, Result};
 
-use super::{Record, StoredEntry, Storage, b64_decode, b64_encode, expiry_of, now_millis};
+use super::{Record, Storage, StoredEntry, b64_decode, b64_encode, expiry_of, now_millis};
 
 /// 值 + 键名的直接占用预算（记录以 base64 存，膨胀后即真实占用）。
 const DEFAULT_BUDGET: usize = 64 << 20;
@@ -82,7 +82,8 @@ impl MemoryStorage {
     fn remove_locked(&self, entries: &mut HashMap<String, Record>, key: &str) -> bool {
         match entries.remove(key) {
             Some(record) => {
-                self.bytes.fetch_sub(record_cost(key, &record), Ordering::Relaxed);
+                self.bytes
+                    .fetch_sub(record_cost(key, &record), Ordering::Relaxed);
                 true
             }
             None => false,
@@ -99,7 +100,10 @@ fn record_cost(key: &str, record: &Record) -> usize {
 fn sweep_map(entries: &mut HashMap<String, Record>, bytes: &AtomicUsize, now: u64) {
     entries.retain(|_, record| record.e > now);
     bytes.store(
-        entries.iter().map(|(key, record)| record_cost(key, record)).sum(),
+        entries
+            .iter()
+            .map(|(key, record)| record_cost(key, record))
+            .sum(),
         Ordering::Relaxed,
     );
 }
@@ -300,7 +304,11 @@ mod tests {
     fn increment_or_init_creates_then_counts() {
         let s = storage();
         let ttl = Duration::from_secs(60);
-        assert_eq!(s.increment_or_init("w", ttl).unwrap(), Some(1), "键不存在→创建");
+        assert_eq!(
+            s.increment_or_init("w", ttl).unwrap(),
+            Some(1),
+            "键不存在→创建"
+        );
         assert_eq!(s.increment_or_init("w", ttl).unwrap(), Some(2), "存在→自增");
 
         // 过期后重新从 1 起，而不是接着涨
@@ -335,7 +343,8 @@ mod tests {
         let s = MemoryStorage::with_budget(74);
         s.set("live", b"1234", Duration::from_secs(60)).unwrap(); // 键 4 + 值 8
         for i in 0..6 {
-            s.set(&format!("k{i}"), b"1234", Duration::from_millis(30)).unwrap();
+            s.set(&format!("k{i}"), b"1234", Duration::from_millis(30))
+                .unwrap();
         }
         assert_eq!(s.len(), 7);
         assert!(
@@ -357,7 +366,10 @@ mod tests {
         let error = s
             .set("k", &[0u8; 100], Duration::from_secs(60))
             .expect_err("超预算应失败关闭");
-        assert!(error.to_string().contains("预算"), "错误信息要说明预算：{error}");
+        assert!(
+            error.to_string().contains("预算"),
+            "错误信息要说明预算：{error}"
+        );
         assert_eq!(
             s.get("k").unwrap().unwrap().value,
             b"1234567890",
@@ -365,7 +377,10 @@ mod tests {
         );
 
         // 另一条键也超预算，同样拒绝
-        assert!(s.set("other", &[0u8; 100], Duration::from_secs(60)).is_err());
+        assert!(
+            s.set("other", &[0u8; 100], Duration::from_secs(60))
+                .is_err()
+        );
         assert_eq!(s.len(), 1);
     }
 

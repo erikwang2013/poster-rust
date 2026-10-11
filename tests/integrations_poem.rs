@@ -33,7 +33,11 @@ fn rate_limited_app(trust_forwarded_for: bool) -> (impl Endpoint, Guard, Arc<Mem
     let guard = Guard::from_manager(manager)
         .unwrap()
         .with_trust_forwarded_for(trust_forwarded_for);
-    (Route::new().nest("/", routes()).data(guard.clone()), guard, storage)
+    (
+        Route::new().nest("/", routes()).data(guard.clone()),
+        guard,
+        storage,
+    )
 }
 
 /// 开启 XFF 信任的应用（模拟「可信代理已覆写 XFF」的部署）。

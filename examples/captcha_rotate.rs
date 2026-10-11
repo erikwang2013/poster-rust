@@ -20,9 +20,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let result = manager
         .create(Some("rotate"))?
-        .set_size(240)              // 圆图直径，钳制到 60-400
+        .set_size(240) // 圆图直径，钳制到 60-400
         .set_angle_range(60.0, 300.0)
-        .set_difficulty("hard")     // hard 的角度范围 90-330
+        .set_difficulty("hard") // hard 的角度范围 90-330
         .generate()?;
 
     let image = output.join(format!("rotate-{}.png", result.key));

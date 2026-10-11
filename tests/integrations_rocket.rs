@@ -33,7 +33,8 @@ fn rate_limited_client(trust_forwarded_for: bool) -> (Client, Guard, Arc<MemoryS
     let guard = Guard::from_manager(manager)
         .unwrap()
         .with_trust_forwarded_for(trust_forwarded_for);
-    let client = Client::untracked(rocket::build().manage(guard.clone()).mount("/", routes())).unwrap();
+    let client =
+        Client::untracked(rocket::build().manage(guard.clone()).mount("/", routes())).unwrap();
     (client, guard, storage)
 }
 
@@ -62,7 +63,10 @@ fn verify_request<'c>(
     xff: Option<&str>,
 ) -> rocket::local::blocking::LocalRequest<'c> {
     let body = json!({ "key": key, "answer": { "Slider": x } }).to_string();
-    let req = client.post("/captcha/verify").header(ContentType::JSON).body(body);
+    let req = client
+        .post("/captcha/verify")
+        .header(ContentType::JSON)
+        .body(body);
     match xff {
         Some(xff) => req.header(Header::new("x-forwarded-for", xff.to_owned())),
         None => req,
@@ -86,7 +90,10 @@ fn verify_rate_limit_buckets_by_request_identity() {
 
     // 身份 A 第一次：答案正确且配额充足 → 放行（顺带用满本窗口的 1 次配额）
     let (key, x) = slider_key_with_answer(&guard, &storage);
-    assert!(post_verify(&client, &key, x, Some("203.0.113.7")), "首次校验应通过");
+    assert!(
+        post_verify(&client, &key, x, Some("203.0.113.7")),
+        "首次校验应通过"
+    );
 
     // 身份 A 第二次：答案仍然正确，但配额已用尽 → 拒绝
     let (key, x) = slider_key_with_answer(&guard, &storage);
@@ -106,7 +113,9 @@ fn verify_rate_limit_buckets_by_request_identity() {
 /// 不带 XFF、指定对端地址的校验请求，返回 `pass`（对端 IP 由 `Request::client_ip` 取，
 /// 本地客户端默认没有对端，需要显式 `remote()` 伪造）。
 fn post_verify_from(client: &Client, key: &str, x: f32, remote: SocketAddr) -> bool {
-    let resp = verify_request(client, key, x, None).remote(remote).dispatch();
+    let resp = verify_request(client, key, x, None)
+        .remote(remote)
+        .dispatch();
     assert_eq!(resp.status(), Status::Ok, "校验端点应返回 200");
     resp.into_json::<serde_json::Value>().unwrap()["pass"]
         .as_bool()
@@ -122,13 +131,22 @@ fn peer_address_buckets_when_xff_absent() {
     let b = SocketAddr::from(([198, 51, 100, 9], 8080));
 
     let (key, x) = slider_key_with_answer(&guard, &storage);
-    assert!(post_verify_from(&client, &key, x, a), "对端 A 首次校验应通过");
+    assert!(
+        post_verify_from(&client, &key, x, a),
+        "对端 A 首次校验应通过"
+    );
 
     let (key, x) = slider_key_with_answer(&guard, &storage);
-    assert!(!post_verify_from(&client, &key, x, a), "同对端超限后即使答案正确也必须拒绝");
+    assert!(
+        !post_verify_from(&client, &key, x, a),
+        "同对端超限后即使答案正确也必须拒绝"
+    );
 
     let (key, x) = slider_key_with_answer(&guard, &storage);
-    assert!(post_verify_from(&client, &key, x, b), "不同对端应各自独立成桶");
+    assert!(
+        post_verify_from(&client, &key, x, b),
+        "不同对端应各自独立成桶"
+    );
 }
 
 /// 缺 `X-Forwarded-For`：不 panic，退化成同一个兜底桶（`client_identity` 回退到对端 IP）。
@@ -153,7 +171,10 @@ fn forged_xff_does_not_change_bucket_by_default() {
     let (client, guard, storage) = rate_limited_client(false);
 
     let (key, x) = slider_key_with_answer(&guard, &storage);
-    assert!(post_verify(&client, &key, x, Some("203.0.113.7")), "首次校验应通过");
+    assert!(
+        post_verify(&client, &key, x, Some("203.0.113.7")),
+        "首次校验应通过"
+    );
 
     let (key, x) = slider_key_with_answer(&guard, &storage);
     assert!(

@@ -133,7 +133,14 @@ mod tests {
 
     #[test]
     fn base_starts_from_the_requested_size() {
-        let base = Base::new(test_ctx(), CaptchaType::Rotate, Difficulty::Medium, None, 200, 200);
+        let base = Base::new(
+            test_ctx(),
+            CaptchaType::Rotate,
+            Difficulty::Medium,
+            None,
+            200,
+            200,
+        );
         assert_eq!((base.width, base.height), (200, 200));
     }
 }

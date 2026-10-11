@@ -24,7 +24,6 @@ pub struct ImageElement {
     pub style: OverlayOptions,
 }
 
-
 impl ElementRender for ImageElement {
     fn render(&self, canvas: &mut ImageDriver, ctx: &RenderCtx<'_>) -> Result<()> {
         let Some(img) = load_image(ctx, &self.src)? else {

@@ -67,7 +67,11 @@ fn main() -> poster::Result<()> {
     builder.use_template(PosterTemplate::from_config(template_json.clone())?);
     let exported = builder.to_array();
     let text = serde_json::to_string_pretty(&exported)?;
-    println!("\n导出模板（{} 个元素，{} 字节）：", exported["elements"].as_array().map_or(0, Vec::len), text.len());
+    println!(
+        "\n导出模板（{} 个元素，{} 字节）：",
+        exported["elements"].as_array().map_or(0, Vec::len),
+        text.len()
+    );
     println!("{}", &text[..text.len().min(400)]);
 
     Ok(())

@@ -94,7 +94,9 @@ impl Default for IconElement {
 impl ElementRender for IconElement {
     fn render(&self, canvas: &mut ImageDriver, _ctx: &RenderCtx<'_>) -> Result<()> {
         let ch = if let Some(codepoint) = &self.codepoint {
-            codepoint_char(codepoint).map(String::from).unwrap_or_default()
+            codepoint_char(codepoint)
+                .map(String::from)
+                .unwrap_or_default()
         } else if self.icon.is_empty() {
             String::new()
         } else {

@@ -21,7 +21,7 @@ use serde::Deserialize;
 
 use crate::error::{PosterError, Result};
 
-use super::{Record, StoredEntry, Storage, b64_decode, b64_encode, expiry_of, now_millis};
+use super::{Record, Storage, StoredEntry, b64_decode, b64_encode, expiry_of, now_millis};
 
 /// 编码后文件名的长度上限（含 `%XX` 展开后的字符数）。
 const MAX_NAME_LEN: usize = 200;
@@ -346,7 +346,10 @@ mod tests {
     #[test]
     fn name_encoding_blocks_traversal_and_is_injective() {
         assert_eq!(encode_name("abc-123_XY").unwrap(), "abc-123_XY");
-        assert_eq!(encode_name("../../etc/passwd").unwrap(), "%2E%2E%2F%2E%2E%2Fetc%2Fpasswd");
+        assert_eq!(
+            encode_name("../../etc/passwd").unwrap(),
+            "%2E%2E%2F%2E%2E%2Fetc%2Fpasswd"
+        );
         assert_eq!(encode_name("rate:abc").unwrap(), "rate%3Aabc");
         assert_ne!(encode_name("a/b").unwrap(), encode_name("a%2Fb").unwrap());
         assert_ne!(encode_name("a%2F").unwrap(), encode_name("a/2F").unwrap());
@@ -359,7 +362,10 @@ mod tests {
         let dir = temp_dir("traversal");
         let s = FileStorage::new(&dir).unwrap();
         s.set("../../evil", b"v", Duration::from_secs(30)).unwrap();
-        let files: Vec<_> = std::fs::read_dir(&dir).unwrap().filter_map(|e| e.ok()).collect();
+        let files: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .collect();
         assert_eq!(files.len(), 1);
         assert!(files[0].path().starts_with(&dir));
         let _ = std::fs::remove_dir_all(&dir);
@@ -369,7 +375,8 @@ mod tests {
     fn round_trip_and_expiry() {
         let dir = temp_dir("ttl");
         let s = FileStorage::new(&dir).unwrap();
-        s.set("k", b"\x00\x01binary", Duration::from_secs(60)).unwrap();
+        s.set("k", b"\x00\x01binary", Duration::from_secs(60))
+            .unwrap();
         assert_eq!(s.get("k").unwrap().unwrap().value, b"\x00\x01binary");
         s.set("short", b"v", Duration::from_millis(30)).unwrap();
         std::thread::sleep(Duration::from_millis(60));
@@ -406,9 +413,16 @@ mod tests {
         let dir2 = temp_dir("incr-init-expired");
         let s2 = FileStorage::new(&dir2).unwrap();
         s2.set("w", b"v", Duration::from_millis(30)).unwrap();
-        assert_eq!(s2.increment_or_init("w", Duration::from_secs(60)).unwrap(), Some(1));
+        assert_eq!(
+            s2.increment_or_init("w", Duration::from_secs(60)).unwrap(),
+            Some(1)
+        );
         std::thread::sleep(Duration::from_millis(60));
-        assert_eq!(s2.increment_or_init("w", ttl).unwrap(), Some(1), "过期即重置");
+        assert_eq!(
+            s2.increment_or_init("w", ttl).unwrap(),
+            Some(1),
+            "过期即重置"
+        );
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::remove_dir_all(&dir2);
     }
@@ -429,7 +443,10 @@ mod tests {
 
         assert!(!dir.join("gone.json").exists(), "过期文件应被清掉");
         assert!(dir.join("live.json").exists());
-        assert!(!dir.join("orphan.json.999.1.tmp").exists(), "孤儿 tmp 应被清掉");
+        assert!(
+            !dir.join("orphan.json.999.1.tmp").exists(),
+            "孤儿 tmp 应被清掉"
+        );
         assert!(dir.join("broken.json").exists(), "读不出的文件不轻动");
         let _ = std::fs::remove_dir_all(&dir);
     }

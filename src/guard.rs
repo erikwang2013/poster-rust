@@ -203,9 +203,15 @@ mod tests {
     #[test]
     fn long_xff_is_truncated_to_64_chars() {
         let long = "a".repeat(200);
-        assert_eq!(client_identity(Some(&long), None).chars().count(), MAX_IDENTITY_LEN);
+        assert_eq!(
+            client_identity(Some(&long), None).chars().count(),
+            MAX_IDENTITY_LEN
+        );
         // 多字节字符按字符截断，不破坏 UTF-8 边界
         let cjk = "测".repeat(100);
-        assert_eq!(client_identity(Some(&cjk), None).chars().count(), MAX_IDENTITY_LEN);
+        assert_eq!(
+            client_identity(Some(&cjk), None).chars().count(),
+            MAX_IDENTITY_LEN
+        );
     }
 }

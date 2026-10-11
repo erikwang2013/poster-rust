@@ -50,7 +50,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("key    = {}", result.key);
     println!("类型   = {}（hard = 4 个目标）", result.captcha_type);
     println!("图片   = {}", image.display());
-    for (index, item) in result.extra["texts"].as_array().ok_or("缺 texts")?.iter().enumerate() {
+    for (index, item) in result.extra["texts"]
+        .as_array()
+        .ok_or("缺 texts")?
+        .iter()
+        .enumerate()
+    {
         let thumb = item["thumb"].as_str().map(|_| "（含缩略图）").unwrap_or("");
         println!("提示{}  = {}{}", index + 1, item["text"], thumb);
     }
@@ -59,8 +64,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 故意打乱顺序：顺序错即失败，且消耗一次尝试次数
     let mut reversed = answer.clone();
     reversed.reverse();
-    println!("校验(乱序) = {}", manager.verify(&result.key, Answer::Click(reversed))?);
-    println!("校验(正确) = {}", manager.verify(&result.key, Answer::Click(answer))?);
+    println!(
+        "校验(乱序) = {}",
+        manager.verify(&result.key, Answer::Click(reversed))?
+    );
+    println!(
+        "校验(正确) = {}",
+        manager.verify(&result.key, Answer::Click(answer))?
+    );
 
     Ok(())
 }

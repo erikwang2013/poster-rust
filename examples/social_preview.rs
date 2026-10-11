@@ -6,11 +6,11 @@
 //! ```
 
 use poster::PosterBuilder;
+use poster::drivers::{OverlayOptions, TextAlign, TextOptions};
 use poster::poster::builder::Direction;
 use poster::poster::elements::{
     image::ImageElement, qrcode::QrcodeElement, shape::ShapeElement, text::TextElement,
 };
-use poster::drivers::{OverlayOptions, TextAlign, TextOptions};
 
 const TITLE: &str = "poster-rust";
 const SUBTITLE_ZH: &str = "Rust 图片验证码与海报生成工具包";

@@ -20,6 +20,7 @@ use poster::PosterConfig;
 use poster::assets;
 use poster::captcha::CaptchaManager;
 use poster::drivers::{LineOptions, OverlayOptions, TextAlign, TextOptions};
+use poster::poster::Direction;
 use poster::poster::PosterBuilder;
 use poster::poster::elements::{
     artistic_text::ArtisticTextElement, avatar::AvatarElement, calendar::CalendarElement,
@@ -27,7 +28,6 @@ use poster::poster::elements::{
     line::LineElement, qrcode::QrcodeElement, shape::ShapeElement, table::TableElement,
     text::TextElement, watermark::WatermarkElement,
 };
-use poster::poster::Direction;
 use poster::storage::MemoryStorage;
 use serde_json::json;
 
@@ -85,7 +85,10 @@ fn main() {
 }
 
 fn print_table(stats: &[Stats]) {
-    println!("\n{:<26} {:>10} {:>10} {:>10}", "name (ms)", "mean", "min", "max");
+    println!(
+        "\n{:<26} {:>10} {:>10} {:>10}",
+        "name (ms)", "mean", "min", "max"
+    );
     println!("{}", "-".repeat(60));
     for stat in stats {
         println!(

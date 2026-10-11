@@ -17,7 +17,13 @@ pub(crate) const MAX_VERIFY_BODY: usize = 2 << 20;
 /// 直接在 async handler 里跑会卡住整个 reactor）。
 ///
 /// 任务 panic 时返回 500 侧的错误（与业务错误同样处理）。
-#[cfg(any(feature = "axum", feature = "rocket", feature = "poem", feature = "salvo", feature = "warp"))]
+#[cfg(any(
+    feature = "axum",
+    feature = "rocket",
+    feature = "poem",
+    feature = "salvo",
+    feature = "warp"
+))]
 pub(crate) async fn run_blocking<T>(
     f: impl FnOnce() -> crate::error::Result<T> + Send + 'static,
 ) -> crate::error::Result<T>

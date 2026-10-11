@@ -133,7 +133,10 @@ mod tests {
         }))
         .unwrap_err();
         let message = err.to_string();
-        assert!(message.contains("#0") && message.contains("type"), "{message}");
+        assert!(
+            message.contains("#0") && message.contains("type"),
+            "{message}"
+        );
     }
 
     #[test]

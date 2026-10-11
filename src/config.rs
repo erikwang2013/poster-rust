@@ -186,8 +186,8 @@ impl Default for CaptchaOptions {
 
 /// 默认点击文字池（28 个单字）。
 pub const DEFAULT_CLICK_WORDS: [&str; 28] = [
-    "合", "家", "欢", "乐", "良", "辰", "美", "景", "千", "变", "万", "化", "心", "有", "灵",
-    "犀", "五", "湖", "四", "海", "山", "川", "美", "景", "花", "好", "月", "圆",
+    "合", "家", "欢", "乐", "良", "辰", "美", "景", "千", "变", "万", "化", "心", "有", "灵", "犀",
+    "五", "湖", "四", "海", "山", "川", "美", "景", "花", "好", "月", "圆",
 ];
 
 /// `poster` 段。
@@ -402,9 +402,15 @@ mod tests {
         let mut c = PosterConfig::default();
         c.image.font = Some(PathBuf::from("/tmp/a.ttf"));
         assert_eq!(resolve_font(&c, None), PathBuf::from("/tmp/a.ttf"));
-        assert_eq!(resolve_font(&c, Some(std::path::Path::new("/tmp/b.ttf"))), PathBuf::from("/tmp/b.ttf"));
+        assert_eq!(
+            resolve_font(&c, Some(std::path::Path::new("/tmp/b.ttf"))),
+            PathBuf::from("/tmp/b.ttf")
+        );
 
         let bare = PosterConfig::default();
-        assert_eq!(resolve_font(&bare, None), crate::assets::default_font_path());
+        assert_eq!(
+            resolve_font(&bare, None),
+            crate::assets::default_font_path()
+        );
     }
 }

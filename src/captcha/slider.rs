@@ -17,7 +17,9 @@ use serde_json::json;
 use crate::drivers::{ImageDriver, ShapeOptions};
 use crate::error::{PosterError, Result};
 
-use super::{Base, CaptchaBuilder, CaptchaResult, CaptchaType, Difficulty, SliderShape, png_data_uri};
+use super::{
+    Base, CaptchaBuilder, CaptchaResult, CaptchaType, Difficulty, SliderShape, png_data_uri,
+};
 
 /// 缺口/拼图块的颜色（半透明黑）。
 const GAP_COLOR: &str = "#00000040";
@@ -92,10 +94,7 @@ pub(crate) fn generate(builder: CaptchaBuilder) -> Result<CaptchaResult> {
             let points = jigsaw_points(puzzle_w as f32, puzzle_h as f32, knob as f32, tabs);
 
             // 拼图块：裁外接矩形 → 轮廓掩膜裁掉矩形外的部分
-            let (bw, bh) = (
-                puzzle_w as i32 + 2 * knob,
-                puzzle_h as i32 + 2 * knob,
-            );
+            let (bw, bh) = (puzzle_w as i32 + 2 * knob, puzzle_h as i32 + 2 * knob);
             piece.crop(puzzle_x - knob, puzzle_y - knob, bw as u32, bh as u32)?;
             let mut mask = ImageDriver::create(bw as u32, bh as u32)?;
             mask.polygon(
@@ -178,7 +177,12 @@ fn jigsaw_points(w: f32, h: f32, k: f32, tabs: [bool; 4]) -> Vec<(f32, f32)> {
     let sides: [((f32, f32), (f32, f32), (f32, f32), (f32, f32)); 4] = [
         ((k, k), (k + w / 2.0, k), (1.0, 0.0), (0.0, -1.0)),
         ((k + w, k), (k + w, k + h / 2.0), (0.0, 1.0), (1.0, 0.0)),
-        ((k + w, k + h), (k + w / 2.0, k + h), (-1.0, 0.0), (0.0, 1.0)),
+        (
+            (k + w, k + h),
+            (k + w / 2.0, k + h),
+            (-1.0, 0.0),
+            (0.0, 1.0),
+        ),
         ((k, k + h), (k, k + h / 2.0), (0.0, -1.0), (-1.0, 0.0)),
     ];
 
@@ -217,16 +221,25 @@ mod tests {
         assert!((top.1 - 0.0).abs() < 0.01, "上边应外凸 10px, got {top:?}");
         // 右边内凹：顶点缩进一个 knob（x = k+w-k = 50）
         let right = side_mid(&points, 1);
-        assert!((right.0 - 50.0).abs() < 0.01, "右边应内凹 10px, got {right:?}");
+        assert!(
+            (right.0 - 50.0).abs() < 0.01,
+            "右边应内凹 10px, got {right:?}"
+        );
         // 下边外凸
         assert!((side_mid(&points, 2).1 - 70.0).abs() < 0.01);
         // 左边内凹：顶点朝本体里缩进一个 knob（x = k + k = 20）
         let left = side_mid(&points, 3);
-        assert!((left.0 - 20.0).abs() < 0.01, "左边应内凹 10px, got {left:?}");
+        assert!(
+            (left.0 - 20.0).abs() < 0.01,
+            "左边应内凹 10px, got {left:?}"
+        );
 
         // 轮廓不出外接矩形 [0, 70] × [0, 70]
         for (x, y) in &points {
-            assert!((-0.01..=70.01).contains(x) && (-0.01..=70.01).contains(y), "越界 {x},{y}");
+            assert!(
+                (-0.01..=70.01).contains(x) && (-0.01..=70.01).contains(y),
+                "越界 {x},{y}"
+            );
         }
     }
 

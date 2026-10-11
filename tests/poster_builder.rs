@@ -77,8 +77,14 @@ fn chaining_builds_and_renders() {
 
     let canvas = builder.render().unwrap();
     assert_eq!(canvas.size(), (300, 200));
-    assert!(canvas.image().pixels().any(has_color("#FF0000")), "应有文字");
-    assert!(canvas.image().pixels().any(has_color("#3366FF")), "应有圆形");
+    assert!(
+        canvas.image().pixels().any(has_color("#FF0000")),
+        "应有文字"
+    );
+    assert!(
+        canvas.image().pixels().any(has_color("#3366FF")),
+        "应有圆形"
+    );
 
     // render() 可重复调用，结果一致
     let again = builder.render().unwrap();
@@ -89,7 +95,11 @@ fn chaining_builds_and_renders() {
 fn default_size_comes_from_config() {
     init_config();
     let canvas = PosterBuilder::new().unwrap().render().unwrap();
-    assert_eq!(canvas.size(), (750, 1334), "默认尺寸来自 poster.default_width/height");
+    assert_eq!(
+        canvas.size(),
+        (750, 1334),
+        "默认尺寸来自 poster.default_width/height"
+    );
 }
 
 #[test]
@@ -99,7 +109,10 @@ fn background_kinds_color_gradient_image() {
     let mut color_bg = PosterBuilder::new().unwrap();
     color_bg.width(100).height(50).background("#123456");
     let canvas = color_bg.render().unwrap();
-    assert!(canvas.image().pixels().all(has_color("#123456")), "应整幅纯色");
+    assert!(
+        canvas.image().pixels().all(has_color("#123456")),
+        "应整幅纯色"
+    );
 
     // 渐变：竖直方向上下两端分别是起止色
     let mut gradient = PosterBuilder::new().unwrap();
@@ -108,18 +121,36 @@ fn background_kinds_color_gradient_image() {
         .height(200)
         .background_gradient("#FF0000", "#0000FF", Direction::Vertical);
     let canvas = gradient.render().unwrap();
-    assert!(has_color("#FF0000")(canvas.image().get_pixel(30, 0)), "顶端应接近起始色");
-    assert!(has_color("#0000FF")(canvas.image().get_pixel(30, 199)), "底端应接近结束色");
+    assert!(
+        has_color("#FF0000")(canvas.image().get_pixel(30, 0)),
+        "顶端应接近起始色"
+    );
+    assert!(
+        has_color("#0000FF")(canvas.image().get_pixel(30, 199)),
+        "底端应接近结束色"
+    );
 
     // 图片背景：40×40 的红色方块铺满 200×100 画布（cover：放大后居中裁剪）
     let source = temp_path("builder-bg.png");
-    ImageDriver::filled(40, 40, "#FF0000").unwrap().save(&source, None, None).unwrap();
+    ImageDriver::filled(40, 40, "#FF0000")
+        .unwrap()
+        .save(&source, None, None)
+        .unwrap();
     let mut image_bg = PosterBuilder::new().unwrap();
-    image_bg.width(200).height(100).background(&source.to_string_lossy());
+    image_bg
+        .width(200)
+        .height(100)
+        .background(&source.to_string_lossy());
     let canvas = image_bg.render().unwrap();
     assert_eq!(canvas.size(), (200, 100));
-    assert!(has_color("#FF0000")(canvas.image().get_pixel(0, 0)), "cover 应铺满四角");
-    assert!(has_color("#FF0000")(canvas.image().get_pixel(199, 99)), "cover 应铺满四角");
+    assert!(
+        has_color("#FF0000")(canvas.image().get_pixel(0, 0)),
+        "cover 应铺满四角"
+    );
+    assert!(
+        has_color("#FF0000")(canvas.image().get_pixel(199, 99)),
+        "cover 应铺满四角"
+    );
     let _ = std::fs::remove_file(&source);
 }
 
@@ -142,12 +173,21 @@ fn add_pet_and_add_by_type_name() {
         .add("shape", json!({"shape": "rect", "x": 10, "y": 10, "width": 80, "height": 40, "color": "#00AA00", "filled": true}))
         .unwrap();
     let canvas = builder.render().unwrap();
-    assert!(canvas.image().pixels().any(has_color("#00AA00")), "add() 应生效");
+    assert!(
+        canvas.image().pixels().any(has_color("#00AA00")),
+        "add() 应生效"
+    );
 
     // 未知类型报错
     let mut builder = PosterBuilder::new().unwrap();
-    let err = builder.add("hologram", json!({})).err().expect("未知类型应报错");
-    assert!(err.to_string().contains("hologram"), "未知类型应报错: {err}");
+    let err = builder
+        .add("hologram", json!({}))
+        .err()
+        .expect("未知类型应报错");
+    assert!(
+        err.to_string().contains("hologram"),
+        "未知类型应报错: {err}"
+    );
 }
 
 #[test]
@@ -165,7 +205,10 @@ fn save_and_output_write_real_bytes() {
     let _ = std::fs::remove_file(&path);
 
     let data_uri = builder.output("png", None).unwrap();
-    assert!(data_uri.starts_with("data:image/png;base64,"), "应输出 data URI");
+    assert!(
+        data_uri.starts_with("data:image/png;base64,"),
+        "应输出 data URI"
+    );
     assert!(data_uri.len() > 100, "data URI 不应为空");
 }
 
@@ -211,32 +254,47 @@ fn to_array_shape_matches_template_contract() {
 fn render_is_cached_until_invalidated() {
     init_config();
     let mut builder = PosterBuilder::new().unwrap();
-    builder.width(150).height(100).background("#FFFFFF").add_shape(
-        "rect",
-        ShapeElement {
-            x: 10,
-            y: 10,
-            width: 40,
-            height: 20,
-            color: "#FF0000".into(),
-            filled: true,
-            ..Default::default()
-        },
-    );
+    builder
+        .width(150)
+        .height(100)
+        .background("#FFFFFF")
+        .add_shape(
+            "rect",
+            ShapeElement {
+                x: 10,
+                y: 10,
+                width: 40,
+                height: 20,
+                color: "#FF0000".into(),
+                filled: true,
+                ..Default::default()
+            },
+        );
 
     // 无变更：重复 render / output 字节一致（第二次起命中缓存）
     let first = builder.render().unwrap();
     let second = builder.render().unwrap();
-    assert_eq!(first.image().as_raw(), second.image().as_raw(), "无变更时重复渲染应一致");
+    assert_eq!(
+        first.image().as_raw(),
+        second.image().as_raw(),
+        "无变更时重复渲染应一致"
+    );
 
     let uri_before = builder.output("png", None).unwrap();
-    assert_eq!(uri_before, builder.output("png", None).unwrap(), "无变更时重复 output 应一致");
+    assert_eq!(
+        uri_before,
+        builder.output("png", None).unwrap(),
+        "无变更时重复 output 应一致"
+    );
 
     // render() 返回的是副本：改动画布不应污染缓存
     let mut detached = builder.render().unwrap();
     detached.image_mut().put_pixel(0, 0, Rgba([0, 255, 0, 255]));
     let untouched = builder.render().unwrap();
-    assert!(!has_color("#00FF00")(untouched.image().get_pixel(0, 0)), "render() 应返回副本");
+    assert!(
+        !has_color("#00FF00")(untouched.image().get_pixel(0, 0)),
+        "render() 应返回副本"
+    );
 
     // 改元素 → 缓存失效，输出随之变化
     builder.add_shape(
@@ -253,14 +311,23 @@ fn render_is_cached_until_invalidated() {
     let uri_after = builder.output("png", None).unwrap();
     assert_ne!(uri_before, uri_after, "改元素后应重新渲染");
     assert!(
-        builder.render().unwrap().image().pixels().any(has_color("#0000FF")),
+        builder
+            .render()
+            .unwrap()
+            .image()
+            .pixels()
+            .any(has_color("#0000FF")),
         "新元素应出现在画布上"
     );
 
     // 背景变更同样失效
     let uri_round2 = builder.output("png", None).unwrap();
     builder.background("#123456");
-    assert_ne!(builder.output("png", None).unwrap(), uri_round2, "改背景后应重新渲染");
+    assert_ne!(
+        builder.output("png", None).unwrap(),
+        uri_round2,
+        "改背景后应重新渲染"
+    );
 }
 
 #[test]
@@ -275,9 +342,13 @@ fn output_bytes_matches_output_and_save() {
     // 与 output() 的 data URI 载荷一致
     use base64::Engine;
     let uri = builder.output("png", None).unwrap();
-    let payload = uri.strip_prefix("data:image/png;base64,").expect("data URI 前缀");
+    let payload = uri
+        .strip_prefix("data:image/png;base64,")
+        .expect("data URI 前缀");
     assert_eq!(
-        base64::engine::general_purpose::STANDARD.decode(payload).unwrap(),
+        base64::engine::general_purpose::STANDARD
+            .decode(payload)
+            .unwrap(),
         bytes,
         "output_bytes 与 output 载荷应一致"
     );
@@ -288,7 +359,11 @@ fn output_bytes_matches_output_and_save() {
     builder.save(&path_a, None).unwrap();
     builder.save(&path_b, None).unwrap();
     let file_a = std::fs::read(&path_a).unwrap();
-    assert_eq!(file_a, std::fs::read(&path_b).unwrap(), "两次 save 字节一致");
+    assert_eq!(
+        file_a,
+        std::fs::read(&path_b).unwrap(),
+        "两次 save 字节一致"
+    );
     assert_eq!(file_a, bytes, "save 与 output_bytes 字节一致");
     let _ = std::fs::remove_file(&path_a);
     let _ = std::fs::remove_file(&path_b);
@@ -308,11 +383,17 @@ fn missing_image_falls_back_to_pet_placeholder() {
             ..Default::default()
         },
     );
-    assert!(painted(&builder.render().unwrap()), "缺图时应画 Posty 占位图");
+    assert!(
+        painted(&builder.render().unwrap()),
+        "缺图时应画 Posty 占位图"
+    );
 
     // 图片存在 → 画图片本身（占位只对缺失文件生效）
     let source = temp_path("builder-placeholder-source.png");
-    ImageDriver::filled(30, 30, "#00FF00").unwrap().save(&source, None, None).unwrap();
+    ImageDriver::filled(30, 30, "#00FF00")
+        .unwrap()
+        .save(&source, None, None)
+        .unwrap();
     let mut builder = PosterBuilder::new().unwrap();
     builder.width(120).height(120).add_image(
         source.to_string_lossy(),
@@ -323,6 +404,9 @@ fn missing_image_falls_back_to_pet_placeholder() {
         },
     );
     let canvas = builder.render().unwrap();
-    assert!(canvas.image().pixels().any(has_color("#00FF00")), "存在的图片应正常绘制");
+    assert!(
+        canvas.image().pixels().any(has_color("#00FF00")),
+        "存在的图片应正常绘制"
+    );
     let _ = std::fs::remove_file(&source);
 }

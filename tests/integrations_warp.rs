@@ -76,7 +76,10 @@ async fn verify_rate_limit_buckets_by_request_identity() {
 
     // 身份 A 第一次：答案正确且配额充足 → 放行（顺带用满本窗口的 1 次配额）
     let (key, x) = slider_key_with_answer(&guard, &storage);
-    assert!(post_verify(&filter, &key, x, "203.0.113.7").await, "首次校验应通过");
+    assert!(
+        post_verify(&filter, &key, x, "203.0.113.7").await,
+        "首次校验应通过"
+    );
 
     // 身份 A 第二次：答案仍然正确，但配额已用尽 → 拒绝
     let (key, x) = slider_key_with_answer(&guard, &storage);
@@ -101,7 +104,10 @@ async fn forged_xff_does_not_change_bucket_by_default() {
     let filter = routes(guard.clone());
 
     let (key, x) = slider_key_with_answer(&guard, &storage);
-    assert!(post_verify(&filter, &key, x, "203.0.113.7").await, "首次校验应通过");
+    assert!(
+        post_verify(&filter, &key, x, "203.0.113.7").await,
+        "首次校验应通过"
+    );
 
     let (key, x) = slider_key_with_answer(&guard, &storage);
     assert!(
@@ -116,7 +122,10 @@ async fn wrong_answer_is_rejected() {
     let (guard, storage) = rate_limited_guard_trusting_xff();
     let filter = routes(guard.clone());
     let (key, x) = slider_key_with_answer(&guard, &storage);
-    assert!(!post_verify(&filter, &key, x + 60.0, "203.0.113.7").await, "错误答案必须不通过");
+    assert!(
+        !post_verify(&filter, &key, x + 60.0, "203.0.113.7").await,
+        "错误答案必须不通过"
+    );
 }
 
 /// 非法 JSON → 400（warp 的 `body::json` 拒绝）。

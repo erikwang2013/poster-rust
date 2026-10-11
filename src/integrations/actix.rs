@@ -21,8 +21,8 @@
 use std::future::{Ready, ready};
 
 use actix_web::dev::Payload;
-use actix_web::web::{self, ServiceConfig};
 use actix_web::http::header;
+use actix_web::web::{self, ServiceConfig};
 use actix_web::{FromRequest, HttpRequest, HttpResponse, Responder};
 
 use crate::captcha::Answer;
@@ -89,7 +89,9 @@ pub async fn captcha_verify(
     guard: Guard,
 ) -> impl Responder {
     let xff = if guard.trust_forwarded_for() {
-        req.headers().get("x-forwarded-for").and_then(|value| value.to_str().ok())
+        req.headers()
+            .get("x-forwarded-for")
+            .and_then(|value| value.to_str().ok())
     } else {
         None
     };

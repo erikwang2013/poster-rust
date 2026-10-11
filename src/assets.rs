@@ -15,11 +15,26 @@ pub const PET_SVG: &str = include_str!("../assets/pet.svg");
 
 /// 内置验证码背景（名称, PNG 字节），对应 `assets/backgrounds/`。
 pub const BACKGROUNDS: [(&str, &[u8]); 6] = [
-    ("blue-purple", include_bytes!("../assets/backgrounds/blue-purple.png")),
-    ("dark-elegant", include_bytes!("../assets/backgrounds/dark-elegant.png")),
-    ("fresh-green", include_bytes!("../assets/backgrounds/fresh-green.png")),
-    ("ocean-blue", include_bytes!("../assets/backgrounds/ocean-blue.png")),
-    ("pink-pastel", include_bytes!("../assets/backgrounds/pink-pastel.png")),
+    (
+        "blue-purple",
+        include_bytes!("../assets/backgrounds/blue-purple.png"),
+    ),
+    (
+        "dark-elegant",
+        include_bytes!("../assets/backgrounds/dark-elegant.png"),
+    ),
+    (
+        "fresh-green",
+        include_bytes!("../assets/backgrounds/fresh-green.png"),
+    ),
+    (
+        "ocean-blue",
+        include_bytes!("../assets/backgrounds/ocean-blue.png"),
+    ),
+    (
+        "pink-pastel",
+        include_bytes!("../assets/backgrounds/pink-pastel.png"),
+    ),
     ("sunset", include_bytes!("../assets/backgrounds/sunset.png")),
 ];
 

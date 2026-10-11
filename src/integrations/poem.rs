@@ -96,7 +96,9 @@ pub async fn captcha_verify(guard: Guard, req: &Request, payload: Body) -> Respo
     let data = match payload.into_bytes_limit(MAX_VERIFY_BODY).await {
         Ok(data) => data,
         Err(ReadBodyError::PayloadTooLarge) => {
-            return Response::builder().status(StatusCode::PAYLOAD_TOO_LARGE).finish();
+            return Response::builder()
+                .status(StatusCode::PAYLOAD_TOO_LARGE)
+                .finish();
         }
         Err(_) => return Response::builder().status(StatusCode::BAD_REQUEST).finish(),
     };

@@ -69,7 +69,14 @@ impl ElementRender for QrcodeElement {
         let size = positive(self.size, "size")?;
         let ec = EcLevel::parse(&self.level)?;
 
-        let mut qr = crate::qrcode::render(&self.content, ec, size, MARGIN_MODULES, "#000000", "#FFFFFF")?;
+        let mut qr = crate::qrcode::render(
+            &self.content,
+            ec,
+            size,
+            MARGIN_MODULES,
+            "#000000",
+            "#FFFFFF",
+        )?;
 
         if let Some(logo) = self.logo.as_deref() {
             if !logo.is_empty() && Path::new(logo).is_file() {

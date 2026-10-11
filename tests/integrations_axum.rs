@@ -30,7 +30,9 @@ fn app() -> Router {
 }
 
 async fn body_json(resp: axum::response::Response) -> serde_json::Value {
-    let bytes = axum::body::to_bytes(resp.into_body(), 4 * 1024 * 1024).await.unwrap();
+    let bytes = axum::body::to_bytes(resp.into_body(), 4 * 1024 * 1024)
+        .await
+        .unwrap();
     serde_json::from_slice(&bytes).unwrap()
 }
 
@@ -53,7 +55,12 @@ async fn generate_serve_and_verify_roundtrip() {
     let json = body_json(resp).await;
     let key = json["key"].as_str().expect("生成结果应有 key").to_string();
     assert_eq!(json["type"], "slider", "载荷类型键应为 type");
-    assert!(json["image"].as_str().unwrap().starts_with("data:image/png;base64,"));
+    assert!(
+        json["image"]
+            .as_str()
+            .unwrap()
+            .starts_with("data:image/png;base64,")
+    );
 
     // 2. 出图：GET /captcha/{key} → PNG + no-store
     let resp = app
@@ -69,7 +76,9 @@ async fn generate_serve_and_verify_roundtrip() {
     assert_eq!(resp.status(), StatusCode::OK);
     assert_eq!(resp.headers()["content-type"], "image/png");
     assert_eq!(resp.headers()["cache-control"], "no-store");
-    let bytes = axum::body::to_bytes(resp.into_body(), 4 * 1024 * 1024).await.unwrap();
+    let bytes = axum::body::to_bytes(resp.into_body(), 4 * 1024 * 1024)
+        .await
+        .unwrap();
     assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n", "应是 PNG 魔数");
 
     // 3. 校验：不存在的 key → pass=false
@@ -187,7 +196,10 @@ async fn verify_rate_limit_buckets_by_request_identity() {
 
     // 身份 A 第一次：答案正确且配额充足 → 放行（顺带用满本窗口的 1 次配额）
     let (key, x) = slider_key_with_answer(&app, &storage).await;
-    assert!(post_verify(&app, &key, x, "203.0.113.7").await, "首次校验应通过");
+    assert!(
+        post_verify(&app, &key, x, "203.0.113.7").await,
+        "首次校验应通过"
+    );
 
     // 身份 A 第二次：答案仍然正确，但配额已用尽 → 拒绝
     let (key, x) = slider_key_with_answer(&app, &storage).await;
@@ -212,7 +224,10 @@ async fn forged_xff_does_not_change_bucket_by_default() {
     let (app, storage) = rate_limited_app(false);
 
     let (key, x) = slider_key_with_answer(&app, &storage).await;
-    assert!(post_verify(&app, &key, x, "203.0.113.7").await, "首次校验应通过");
+    assert!(
+        post_verify(&app, &key, x, "203.0.113.7").await,
+        "首次校验应通过"
+    );
 
     let (key, x) = slider_key_with_answer(&app, &storage).await;
     assert!(

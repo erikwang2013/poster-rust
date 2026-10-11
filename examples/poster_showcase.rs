@@ -8,12 +8,12 @@
 use serde_json::json;
 
 use poster::assets;
-use poster::drivers::{LineOptions, OverlayOptions, TextOptions, TextAlign};
+use poster::drivers::{LineOptions, OverlayOptions, TextAlign, TextOptions};
 use poster::poster::elements::{
     artistic_text::ArtisticTextElement, avatar::AvatarElement, calendar::CalendarElement,
-    chart::ChartElement, emoji::EmojiElement, emoticon::EmoticonElement,
-    image::ImageElement, line::LineElement, qrcode::QrcodeElement, shape::ShapeElement,
-    table::TableElement, text::TextElement, watermark::WatermarkElement,
+    chart::ChartElement, emoji::EmojiElement, emoticon::EmoticonElement, image::ImageElement,
+    line::LineElement, qrcode::QrcodeElement, shape::ShapeElement, table::TableElement,
+    text::TextElement, watermark::WatermarkElement,
 };
 use poster::poster::{Direction, PosterBuilder};
 
@@ -73,7 +73,7 @@ fn main() -> poster::Result<()> {
             "stroke",
             ArtisticTextElement {
                 x: 60,
-                y: 128,          // 字号校准后标题下移，避免贴顶
+                y: 128, // 字号校准后标题下移，避免贴顶
                 size: 60.0,
                 color: "#FFFFFF".into(),
                 stroke_color: "#C2402F".into(),
@@ -206,7 +206,11 @@ fn main() -> poster::Result<()> {
         )
         .add_chart(
             "pie",
-            vec![json!({"label": "小程序", "value": 42}), json!({"label": "App", "value": 31}), json!({"label": "H5", "value": 27})],
+            vec![
+                json!({"label": "小程序", "value": 42}),
+                json!({"label": "App", "value": 31}),
+                json!({"label": "H5", "value": 27}),
+            ],
             ChartElement {
                 x: 350,
                 y: 1000,
@@ -218,8 +222,14 @@ fn main() -> poster::Result<()> {
 
     // 日历
     let mut highlights = std::collections::BTreeMap::new();
-    highlights.insert("2026-10-01".to_string(), json!({"text": "国庆", "bg": "#FFEAA7"}));
-    highlights.insert("2026-10-06".to_string(), json!({"text": "今天", "bg": "#D6F5F0"}));
+    highlights.insert(
+        "2026-10-01".to_string(),
+        json!({"text": "国庆", "bg": "#FFEAA7"}),
+    );
+    highlights.insert(
+        "2026-10-06".to_string(),
+        json!({"text": "今天", "bg": "#D6F5F0"}),
+    );
     builder.add_calendar(CalendarElement {
         year: Some(2026),
         month: Some(10),
@@ -267,7 +277,7 @@ fn main() -> poster::Result<()> {
             "neon",
             ArtisticTextElement {
                 x: 545,
-                y: 1212,         // 二维码文案下方的空带
+                y: 1212, // 二维码文案下方的空带
                 size: 22.0,
                 glow_color: Some("#FF6B6B".into()),
                 ..Default::default()

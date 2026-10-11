@@ -6,8 +6,8 @@
 
 use std::sync::Arc;
 
-use poster::captcha::{Answer, CaptchaManager};
 use poster::Guard;
+use poster::captcha::{Answer, CaptchaManager};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 接线期构造：存储探针失败会在这里报错，而不是在第一个请求
@@ -17,7 +17,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = guard.create(Some("slider"))?.generate()?;
     println!("key    = {}", result.key);
     println!("type   = {}", result.captcha_type);
-    println!("image  = {}…（{} 字节 data URI）", &result.image[..40.min(result.image.len())], result.image.len());
+    println!(
+        "image  = {}…（{} 字节 data URI）",
+        &result.image[..40.min(result.image.len())],
+        result.image.len()
+    );
     println!("extra  = {}", result.extra);
 
     // 出图路由的等价物：拿到 PNG 字节

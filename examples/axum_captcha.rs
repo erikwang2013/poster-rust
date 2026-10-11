@@ -11,9 +11,9 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::routing::get;
+use poster::Guard;
 use poster::captcha::CaptchaManager;
 use poster::integrations::axum::{GuardState, captcha_routes};
-use poster::Guard;
 
 #[derive(Clone)]
 struct AppState {
@@ -33,7 +33,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = Router::new()
         .merge(captcha_routes::<AppState>())
-        .route("/", get(|| async { "poster-rust 验证码示例: GET /captcha/new?type=slider" }))
+        .route(
+            "/",
+            get(|| async { "poster-rust 验证码示例: GET /captcha/new?type=slider" }),
+        )
         .with_state(AppState { captcha: guard });
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:8090").await?;

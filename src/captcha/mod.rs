@@ -334,7 +334,10 @@ impl Base {
                 }
             }
             BackgroundSource::Embedded => {
-                if let Some(bytes) = assets::BACKGROUNDS.choose(&mut rand::rng()).map(|(_, b)| *b) {
+                if let Some(bytes) = assets::BACKGROUNDS
+                    .choose(&mut rand::rng())
+                    .map(|(_, b)| *b)
+                {
                     let mut bg = ImageDriver::from_bytes(bytes)?;
                     bg.resize(target_w, target_h)?;
                     return Ok(bg);
@@ -537,12 +540,12 @@ impl Base {
         payload.insert("created_at".into(), json!(chrono::Utc::now().timestamp()));
 
         let ttl = Duration::from_secs(self.ctx.config.captcha.ttl_secs);
-        self.ctx
-            .storage
-            .set(&payload_key(&self.key), Value::Object(payload).to_string().as_bytes(), ttl)?;
-        self.ctx
-            .storage
-            .set(&image_key(&self.key), png, ttl)?;
+        self.ctx.storage.set(
+            &payload_key(&self.key),
+            Value::Object(payload).to_string().as_bytes(),
+            ttl,
+        )?;
+        self.ctx.storage.set(&image_key(&self.key), png, ttl)?;
 
         Ok(CaptchaResult {
             key: self.key.clone(),
@@ -872,9 +875,18 @@ mod tests {
 
     #[test]
     fn color_interpolation_hits_both_ends() {
-        assert_eq!(interpolate_color("#000000", "#FFFFFF", 0.0).unwrap(), "#000000");
-        assert_eq!(interpolate_color("#000000", "#FFFFFF", 1.0).unwrap(), "#FFFFFF");
-        assert_eq!(interpolate_color("#000000", "#FF0000", 0.5).unwrap(), "#7F0000");
+        assert_eq!(
+            interpolate_color("#000000", "#FFFFFF", 0.0).unwrap(),
+            "#000000"
+        );
+        assert_eq!(
+            interpolate_color("#000000", "#FFFFFF", 1.0).unwrap(),
+            "#FFFFFF"
+        );
+        assert_eq!(
+            interpolate_color("#000000", "#FF0000", 0.5).unwrap(),
+            "#7F0000"
+        );
     }
 
     #[test]

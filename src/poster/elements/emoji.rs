@@ -96,10 +96,13 @@ impl ElementRender for EmojiElement {
             font: Some(font.clone()),
             ..Default::default()
         };
-        if let Ok((ascent, descent, width)) = canvas
-            .font(&font)
-            .map(|loaded| (loaded.ascent(size), loaded.descent(size), loaded.measure(&ch, size)))
-        {
+        if let Ok((ascent, descent, width)) = canvas.font(&font).map(|loaded| {
+            (
+                loaded.ascent(size),
+                loaded.descent(size),
+                loaded.measure(&ch, size),
+            )
+        }) {
             let ascent = ascent.max(0.0);
             let mut probe = ImageDriver::create(
                 width.ceil() as u32 + 8,

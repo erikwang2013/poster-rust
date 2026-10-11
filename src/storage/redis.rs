@@ -22,7 +22,7 @@ use redis::Commands;
 
 use crate::error::Result;
 
-use super::{StoredEntry, Storage};
+use super::{Storage, StoredEntry};
 
 /// 建连与单次命令的超时上限。
 const OP_TIMEOUT: Duration = Duration::from_secs(5);

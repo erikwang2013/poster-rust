@@ -83,7 +83,9 @@ async fn generate_serve_and_verify_roundtrip() {
     // 1. 生成：`?type=` 被采信
     let resp = call_service(
         &app,
-        TestRequest::get().uri("/captcha/new?type=slider").to_request(),
+        TestRequest::get()
+            .uri("/captcha/new?type=slider")
+            .to_request(),
     )
     .await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -95,13 +97,22 @@ async fn generate_serve_and_verify_roundtrip() {
     let uri = format!("/captcha/{key}");
     let resp = call_service(&app, TestRequest::get().uri(&uri).to_request()).await;
     assert_eq!(resp.status(), StatusCode::OK);
-    assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "image/png");
-    assert_eq!(resp.headers().get(header::CACHE_CONTROL).unwrap(), "no-store");
+    assert_eq!(
+        resp.headers().get(header::CONTENT_TYPE).unwrap(),
+        "image/png"
+    );
+    assert_eq!(
+        resp.headers().get(header::CACHE_CONTROL).unwrap(),
+        "no-store"
+    );
     let bytes = read_body(resp).await;
     assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n", "应是 PNG 魔数");
 
     // 3. 校验：不存在的 key → pass=false
-    assert!(!post_verify!(app, "nope", 1.0, None), "未知 key 必须校验失败");
+    assert!(
+        !post_verify!(app, "nope", 1.0, None),
+        "未知 key 必须校验失败"
+    );
 
     // 4. 不存在的 key 出图 → 404
     let resp = call_service(&app, TestRequest::get().uri("/captcha/nope").to_request()).await;
@@ -122,7 +133,10 @@ async fn verify_rate_limit_buckets_by_request_identity() {
 
     // 身份 A 第一次：答案正确且配额充足 → 放行（顺带用满本窗口的 1 次配额）
     let (key, x) = slider_key_with_answer(&guard, &storage);
-    assert!(post_verify!(app, &key, x, Some("203.0.113.7")), "首次校验应通过");
+    assert!(
+        post_verify!(app, &key, x, Some("203.0.113.7")),
+        "首次校验应通过"
+    );
 
     // 身份 A 第二次：答案仍然正确，但配额已用尽 → 拒绝
     let (key, x) = slider_key_with_answer(&guard, &storage);
@@ -151,7 +165,10 @@ async fn forged_xff_does_not_change_bucket_by_default() {
     .await;
 
     let (key, x) = slider_key_with_answer(&guard, &storage);
-    assert!(post_verify!(app, &key, x, Some("203.0.113.7")), "首次校验应通过");
+    assert!(
+        post_verify!(app, &key, x, Some("203.0.113.7")),
+        "首次校验应通过"
+    );
 
     let (key, x) = slider_key_with_answer(&guard, &storage);
     assert!(

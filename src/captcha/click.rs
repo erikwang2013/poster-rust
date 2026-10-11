@@ -10,8 +10,8 @@ use rand::Rng;
 use rand::seq::SliceRandom;
 use serde_json::{Value, json};
 
-use crate::drivers::{LineOptions, OverlayOptions, ShapeOptions, TextAlign, TextOptions};
 use crate::drivers::ImageDriver;
+use crate::drivers::{LineOptions, OverlayOptions, ShapeOptions, TextAlign, TextOptions};
 use crate::error::{PosterError, Result};
 
 use super::{Base, CaptchaBuilder, CaptchaResult, CaptchaType, Difficulty, TargetType};
@@ -143,7 +143,8 @@ fn place_targets(
     let jitter = spacing / 3.0;
     let region_w = base.width as f32 - 2.0 * pad as f32;
     let region_h = base.height as f32 - 3.0 * pad as f32;
-    if region_w < (cols - 1) as f32 * spacing + jitter || region_h < (rows - 1) as f32 * spacing + jitter
+    if region_w < (cols - 1) as f32 * spacing + jitter
+        || region_h < (rows - 1) as f32 * spacing + jitter
     {
         return Err(PosterError::Captcha(format!(
             "画布 {}x{} 放不下 {} 个点击目标（最小间距 {spacing:.0}px）：请放大到约 {} 或降低难度",
@@ -160,10 +161,10 @@ fn place_targets(
     let mut rng = rand::rng();
     slots.shuffle(&mut rng);
 
-    let offset_x =
-        pad as f32 + rng.random_range(0..=(region_w - (cols - 1) as f32 * spacing).round() as i32) as f32;
-    let offset_y =
-        pad as f32 + rng.random_range(0..=(region_h - (rows - 1) as f32 * spacing).round() as i32) as f32;
+    let offset_x = pad as f32
+        + rng.random_range(0..=(region_w - (cols - 1) as f32 * spacing).round() as i32) as f32;
+    let offset_y = pad as f32
+        + rng.random_range(0..=(region_h - (rows - 1) as f32 * spacing).round() as i32) as f32;
 
     let pool = target_pool(base, count, target_type, words);
     Ok((0..count)
@@ -240,7 +241,14 @@ fn render_icon(shape: &str, color: &str, angle: i32) -> Result<ImageDriver> {
         (ICON_SIZE as u32) + ICON_PADDING,
     )?;
     let (w, h) = icon.size();
-    draw_shape(&mut icon, shape, (w / 2) as i32, (h / 2) as i32, ICON_SIZE, color)?;
+    draw_shape(
+        &mut icon,
+        shape,
+        (w / 2) as i32,
+        (h / 2) as i32,
+        ICON_SIZE,
+        color,
+    )?;
     if angle != 0 {
         icon.rotate(angle as f32, "transparent")?;
     }
@@ -310,7 +318,9 @@ fn draw_shape(
             canvas.line(cx - r, cy - r, cx + r, cy, &line)?;
             canvas.line(cx + r, cy, cx - r, cy + r, &line)?;
         }
-        "semicircle" => canvas.filled_arc(cx, cy, size as u32, size as u32, 180.0, 360.0, &filled)?,
+        "semicircle" => {
+            canvas.filled_arc(cx, cy, size as u32, size as u32, 180.0, 360.0, &filled)?
+        }
         "wedge" => canvas.filled_arc(cx, cy, size as u32, size as u32, 40.0, 140.0, &filled)?,
         "asterisk" => {
             for i in 0..3 {
@@ -403,7 +413,14 @@ mod tests {
     use crate::captcha::test_ctx;
 
     fn base(difficulty: Difficulty, width: u32, height: u32) -> Base {
-        Base::new(test_ctx(), CaptchaType::Click, difficulty, None, width, height)
+        Base::new(
+            test_ctx(),
+            CaptchaType::Click,
+            difficulty,
+            None,
+            width,
+            height,
+        )
     }
 
     #[test]
@@ -453,7 +470,12 @@ mod tests {
     fn pool_falls_back_and_cycles() {
         let base = base(Difficulty::Medium, 300, 200);
         // 自定义词池只有 2 个词，要凑 4 个目标时循环取用
-        let pool = target_pool(&base, 4, TargetType::Text, Some(vec!["猫".into(), "狗".into()]));
+        let pool = target_pool(
+            &base,
+            4,
+            TargetType::Text,
+            Some(vec!["猫".into(), "狗".into()]),
+        );
         assert_eq!(pool.len(), 4);
         assert!(pool.iter().all(|w| w == "猫" || w == "狗"));
 
@@ -481,7 +503,13 @@ mod tests {
         for color in &colors {
             crate::drivers::color::parse(color).unwrap();
         }
-        assert!(colors.iter().collect::<std::collections::HashSet<_>>().len() > 10);
+        assert!(
+            colors
+                .iter()
+                .collect::<std::collections::HashSet<_>>()
+                .len()
+                > 10
+        );
         let alpha = random_alpha();
         assert!(crate::drivers::color::parse(&format!("#112233{alpha}")).is_ok());
     }

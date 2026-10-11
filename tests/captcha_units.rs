@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 
-use poster::PosterConfig;
 use poster::ImageDriver;
+use poster::PosterConfig;
 use poster::captcha::{Answer, CaptchaManager};
 use poster::storage::{MemoryStorage, Storage};
 
@@ -103,11 +103,7 @@ fn trajectory_config() -> PosterConfig {
 
 /// 生成一张滑块，返回 (key, 正确的 x)。
 fn slider(manager: &CaptchaManager, storage: &MemoryStorage) -> (String, f32) {
-    let result = manager
-        .create(Some("slider"))
-        .unwrap()
-        .generate()
-        .unwrap();
+    let result = manager.create(Some("slider")).unwrap().generate().unwrap();
     let x = payload(storage, &result.key)["x"].as_f64().unwrap() as f32;
     (result.key, x)
 }
@@ -188,11 +184,7 @@ fn slider_trajectory_verdicts() {
 fn rotate_trajectory_verdicts() {
     let (manager, storage) = manager_with(trajectory_config());
 
-    let result = manager
-        .create(Some("rotate"))
-        .unwrap()
-        .generate()
-        .unwrap();
+    let result = manager.create(Some("rotate")).unwrap().generate().unwrap();
     let angle = payload(&storage, &result.key)["angle"].as_f64().unwrap() as f32;
 
     // 角度对 + 轨迹像人：通过
@@ -210,11 +202,7 @@ fn rotate_trajectory_verdicts() {
     );
 
     // 角度对但轨迹是直线：拒绝
-    let result = manager
-        .create(Some("rotate"))
-        .unwrap()
-        .generate()
-        .unwrap();
+    let result = manager.create(Some("rotate")).unwrap().generate().unwrap();
     let angle = payload(&storage, &result.key)["angle"].as_f64().unwrap() as f32;
     assert!(
         !manager
@@ -230,11 +218,7 @@ fn rotate_trajectory_verdicts() {
     );
 
     // 裸角度：拒绝
-    let result = manager
-        .create(Some("rotate"))
-        .unwrap()
-        .generate()
-        .unwrap();
+    let result = manager.create(Some("rotate")).unwrap().generate().unwrap();
     let angle = payload(&storage, &result.key)["angle"].as_f64().unwrap() as f32;
     assert!(!manager.verify(&result.key, Answer::Rotate(angle)).unwrap());
 }
@@ -270,7 +254,10 @@ fn jigsaw_piece_is_masked_by_the_outline() {
     let alpha = |x: i32, y: i32| piece.image().get_pixel(x as u32, y as u32).0[3];
     // 轮廓只在四条边的中点凸出/凹陷，外接矩形的角永远在轮廓外 → 透明
     assert_eq!(alpha(1, 1), 0, "外接矩形左上角应在轮廓外");
-    assert_eq!(alpha(piece.width() as i32 - 2, piece.height() as i32 - 2), 0);
+    assert_eq!(
+        alpha(piece.width() as i32 - 2, piece.height() as i32 - 2),
+        0
+    );
     // 本体内部（左上角内侧、正中心）永远在轮廓内 → 不透明
     assert_eq!(alpha(knob + 2, knob + 2), 255);
     assert_eq!(alpha(knob + puzzle_w / 2, knob + puzzle_h / 2), 255);
@@ -315,9 +302,18 @@ fn square_piece_is_a_plain_rectangle() {
     let puzzle_h = result.extra["puzzle_h"].as_u64().unwrap() as i32;
 
     let piece = decode_uri(result.extra["puzzle"].as_str().unwrap());
-    assert_eq!(piece.size(), (puzzle_w as u32, puzzle_h as u32), "矩形无外扩");
+    assert_eq!(
+        piece.size(),
+        (puzzle_w as u32, puzzle_h as u32),
+        "矩形无外扩"
+    );
     // 整块都是不透明的（背景为纯白，切下来的像素也是白的）
-    for (x, y) in [(0, 0), (puzzle_w - 1, 0), (0, puzzle_h - 1), (puzzle_w / 2, puzzle_h / 2)] {
+    for (x, y) in [
+        (0, 0),
+        (puzzle_w - 1, 0),
+        (0, puzzle_h - 1),
+        (puzzle_w / 2, puzzle_h / 2),
+    ] {
         let pixel = piece.image().get_pixel(x as u32, y as u32).0;
         assert_eq!(pixel[3], 255, "({x},{y}) 应不透明");
         assert_eq!(pixel[0], 255, "({x},{y}) 取自纯白背景");
@@ -326,7 +322,13 @@ fn square_piece_is_a_plain_rectangle() {
     // 缺口是整块矩形
     let x = payload(&storage, &result.key)["x"].as_f64().unwrap() as i32;
     let y = payload(&storage, &result.key)["y"].as_f64().unwrap() as i32;
-    let ratio = dark_ratio(&decode_uri(&result.image), x, y, puzzle_w as u32, puzzle_h as u32);
+    let ratio = dark_ratio(
+        &decode_uri(&result.image),
+        x,
+        y,
+        puzzle_w as u32,
+        puzzle_h as u32,
+    );
     assert!(ratio >= 0.95, "矩形缺口应铺满整块，实测 {ratio}");
 }
 
@@ -353,7 +355,10 @@ fn builders_clamp_parameters() {
         .generate()
         .unwrap();
     let angle = payload(&storage, &result.key)["angle"].as_f64().unwrap();
-    assert!((30.0..=200.0).contains(&angle), "medium 应落在 30-200，实测 {angle}");
+    assert!(
+        (30.0..=200.0).contains(&angle),
+        "medium 应落在 30-200，实测 {angle}"
+    );
 
     // 难度决定点击目标个数：easy 2 / hard 4
     for (difficulty, expected) in [("easy", 2usize), ("hard", 4)] {

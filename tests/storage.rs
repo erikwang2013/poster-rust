@@ -47,9 +47,17 @@ fn memory_increment_or_init_counts_from_one() {
     let key = "rate:abc:7";
     let ttl = Duration::from_secs(60);
 
-    assert_eq!(storage.increment_or_init(key, ttl).unwrap(), Some(1), "键不存在→创建");
+    assert_eq!(
+        storage.increment_or_init(key, ttl).unwrap(),
+        Some(1),
+        "键不存在→创建"
+    );
     assert_eq!(storage.increment_or_init(key, ttl).unwrap(), Some(2));
-    assert_eq!(storage.increment_or_init("rate:abc:8", ttl).unwrap(), Some(1), "换窗口即换键");
+    assert_eq!(
+        storage.increment_or_init("rate:abc:8", ttl).unwrap(),
+        Some(1),
+        "换窗口即换键"
+    );
     // 报告出来的 TTL 由传入的 ttl 决定（限流键唯一的回收手段）
     let remaining = storage.get(key).unwrap().unwrap().ttl.unwrap();
     assert!(remaining <= Duration::from_secs(60) && remaining > Duration::from_secs(55));
@@ -63,7 +71,11 @@ fn memory_expires() {
 
     std::thread::sleep(Duration::from_millis(700));
     assert!(storage.get("k").unwrap().is_none(), "过期后读不到");
-    assert_eq!(storage.increment("k").unwrap(), None, "过期后自增拿不到序号");
+    assert_eq!(
+        storage.increment("k").unwrap(),
+        None,
+        "过期后自增拿不到序号"
+    );
 }
 
 #[test]
@@ -76,11 +88,15 @@ fn file_round_trip_and_ttl() {
     assert_eq!(storage.increment("k").unwrap(), Some(1));
     assert_eq!(storage.increment("k").unwrap(), Some(2));
     // 重新 set 重置计数
-    storage.set("k", b"value2", Duration::from_secs(60)).unwrap();
+    storage
+        .set("k", b"value2", Duration::from_secs(60))
+        .unwrap();
     assert_eq!(storage.increment("k").unwrap(), Some(1));
 
     // 短 TTL 落盘后过期即读不到，文件也被清掉
-    storage.set("short", b"v", Duration::from_millis(400)).unwrap();
+    storage
+        .set("short", b"v", Duration::from_millis(400))
+        .unwrap();
     assert!(storage.get("short").unwrap().is_some());
     std::thread::sleep(Duration::from_millis(700));
     assert!(storage.get("short").unwrap().is_none());
@@ -98,7 +114,11 @@ fn file_increment_or_init_counts_from_one() {
 
     assert_eq!(storage.increment_or_init("rate:a:1", ttl).unwrap(), Some(1));
     assert_eq!(storage.increment_or_init("rate:a:1", ttl).unwrap(), Some(2));
-    assert_eq!(storage.increment_or_init("rate:a:2", ttl).unwrap(), Some(1), "换窗口即换键");
+    assert_eq!(
+        storage.increment_or_init("rate:a:2", ttl).unwrap(),
+        Some(1),
+        "换窗口即换键"
+    );
 
     // 限流键是纯计数键：没有载荷也能建（旧实现会因「主键不存在」拿不到计数）
     assert!(storage.get("rate:a:1").unwrap().is_some());
@@ -121,7 +141,11 @@ fn file_keys_are_escaped_and_cannot_escape_the_directory() {
         ("with space", "with%20space.json"),
     ] {
         storage.set(key, b"v", Duration::from_secs(60)).unwrap();
-        assert_eq!(storage.get(key).unwrap().unwrap().value, b"v", "key = {key}");
+        assert_eq!(
+            storage.get(key).unwrap().unwrap().value,
+            b"v",
+            "key = {key}"
+        );
         assert_eq!(storage.increment(key).unwrap(), Some(1), "key = {key}");
 
         let names: Vec<String> = std::fs::read_dir(&dir)
@@ -136,14 +160,19 @@ fn file_keys_are_escaped_and_cannot_escape_the_directory() {
 
         storage.delete(key).unwrap();
     }
-    assert!(std::fs::read_dir(&dir).unwrap().next().is_none(), "清空后目录为空");
+    assert!(
+        std::fs::read_dir(&dir).unwrap().next().is_none(),
+        "清空后目录为空"
+    );
 }
 
 #[test]
 fn file_increment_is_thread_safe_within_the_process() {
     let dir = tmp_dir("file-concurrency");
     let storage = Arc::new(FileStorage::new(&dir).unwrap());
-    storage.set("counter", b"v", Duration::from_secs(60)).unwrap();
+    storage
+        .set("counter", b"v", Duration::from_secs(60))
+        .unwrap();
 
     let mut handles = Vec::new();
     for _ in 0..8 {
@@ -165,7 +194,10 @@ fn file_increment_is_thread_safe_within_the_process() {
 #[test]
 fn default_dir_follows_config() {
     let config = PosterConfig::default();
-    assert!(default_dir(&config).ends_with("poster-captcha"), "未配置时用系统临时目录");
+    assert!(
+        default_dir(&config).ends_with("poster-captcha"),
+        "未配置时用系统临时目录"
+    );
 
     let mut config = config;
     config.captcha.file_path = Some("/tmp/poster-captcha-custom".into());
@@ -213,7 +245,10 @@ fn redis_round_trip_or_skip() {
     storage.set("k", b"v", Duration::from_secs(30)).unwrap();
     let entry = storage.get("k").unwrap().expect("刚写进去的应读得到");
     assert_eq!(entry.value, b"v");
-    assert!(entry.ttl.is_none(), "Redis 的 TTL 由服务端维护，不额外往返查询");
+    assert!(
+        entry.ttl.is_none(),
+        "Redis 的 TTL 由服务端维护，不额外往返查询"
+    );
 
     assert_eq!(storage.increment("k").unwrap(), Some(1));
     assert_eq!(storage.increment("k").unwrap(), Some(2));
@@ -225,11 +260,15 @@ fn redis_round_trip_or_skip() {
 
     // 限流计数键：凭空建键 + 自增，键本身必须带 TTL（否则泄漏）
     assert_eq!(
-        storage.increment_or_init("rate:w:1", Duration::from_secs(30)).unwrap(),
+        storage
+            .increment_or_init("rate:w:1", Duration::from_secs(30))
+            .unwrap(),
         Some(1)
     );
     assert_eq!(
-        storage.increment_or_init("rate:w:1", Duration::from_secs(30)).unwrap(),
+        storage
+            .increment_or_init("rate:w:1", Duration::from_secs(30))
+            .unwrap(),
         Some(2)
     );
     assert!(storage.delete("rate:w:1").unwrap(), "计数键删得到");

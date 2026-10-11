@@ -28,7 +28,6 @@ pub struct LineElement {
     pub style: LineOptions,
 }
 
-
 impl ElementRender for LineElement {
     fn render(&self, canvas: &mut ImageDriver, _ctx: &RenderCtx<'_>) -> Result<()> {
         let x2 = self.x2.or(self.x).unwrap_or(100);

@@ -98,7 +98,9 @@ impl<'r> FromRequest<'r> for ForwardedFor {
     type Error = Infallible;
 
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        Outcome::Success(Self(req.headers().get_one("x-forwarded-for").map(str::to_owned)))
+        Outcome::Success(Self(
+            req.headers().get_one("x-forwarded-for").map(str::to_owned),
+        ))
     }
 }
 
@@ -117,7 +119,11 @@ pub async fn captcha_verify(
     client_ip: Option<IpAddr>,
     body: Json<VerifyRequest>,
 ) -> Result<Json<serde_json::Value>, Status> {
-    let xff = if guard.trust_forwarded_for() { xff.0.as_deref() } else { None };
+    let xff = if guard.trust_forwarded_for() {
+        xff.0.as_deref()
+    } else {
+        None
+    };
     let identity = client_identity(xff, client_ip);
     let VerifyRequest { key, answer } = body.into_inner();
     match super::run_blocking(move || guard.verify_as(&key, answer, &identity)).await {

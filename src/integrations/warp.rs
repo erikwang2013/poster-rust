@@ -66,7 +66,11 @@ fn verify_reply(
     xff: Option<String>,
     body: VerifyRequest,
 ) -> Box<dyn warp::Reply + Send> {
-    let xff = if guard.trust_forwarded_for() { xff.as_deref() } else { None };
+    let xff = if guard.trust_forwarded_for() {
+        xff.as_deref()
+    } else {
+        None
+    };
     let identity = client_identity(xff, remote.map(|addr| addr.ip()));
     match guard.verify_as(&body.key, body.answer, &identity) {
         Ok(pass) => Box::new(warp::reply::json(&serde_json::json!({ "pass": pass }))),

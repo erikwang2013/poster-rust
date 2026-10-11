@@ -74,7 +74,11 @@ fn click_generates_and_verifies_with_the_internal_answer() {
 
     let payload = payload(&storage, &result.key);
     assert_eq!(payload["type"], "click");
-    assert_eq!(payload["targets"].as_array().unwrap().len(), 3, "medium = 3 目标");
+    assert_eq!(
+        payload["targets"].as_array().unwrap().len(),
+        3,
+        "medium = 3 目标"
+    );
     assert_eq!(payload["attempts"], 0);
 
     assert!(manager.verify(&result.key, click_answer(&payload)).unwrap());
@@ -88,11 +92,7 @@ fn click_generates_and_verifies_with_the_internal_answer() {
 #[test]
 fn rotate_generates_and_verifies_with_the_internal_answer() {
     let (manager, storage) = manager();
-    let result = manager
-        .create(Some("rotate"))
-        .unwrap()
-        .generate()
-        .unwrap();
+    let result = manager.create(Some("rotate")).unwrap().generate().unwrap();
     assert_eq!(result.captcha_type, "rotate");
     assert_eq!(payload(&storage, &result.key)["type"], "rotate");
 
@@ -103,11 +103,7 @@ fn rotate_generates_and_verifies_with_the_internal_answer() {
 #[test]
 fn slider_generates_and_verifies_with_the_internal_answer() {
     let (manager, storage) = manager();
-    let result = manager
-        .create(Some("slider"))
-        .unwrap()
-        .generate()
-        .unwrap();
+    let result = manager.create(Some("slider")).unwrap().generate().unwrap();
     assert_eq!(result.captcha_type, "slider");
 
     let payload = payload(&storage, &result.key);
@@ -127,14 +123,14 @@ fn slider_generates_and_verifies_with_the_internal_answer() {
 #[test]
 fn wrong_answer_fails_and_keeps_the_key() {
     let (manager, storage) = manager();
-    let result = manager
-        .create(Some("slider"))
-        .unwrap()
-        .generate()
-        .unwrap();
+    let result = manager.create(Some("slider")).unwrap().generate().unwrap();
     let x = slider_x(&storage, &result.key);
 
-    assert!(!manager.verify(&result.key, Answer::Slider(x + 500.0)).unwrap());
+    assert!(
+        !manager
+            .verify(&result.key, Answer::Slider(x + 500.0))
+            .unwrap()
+    );
     assert!(
         storage.get(&store_key(&result.key)).unwrap().is_some(),
         "失败后 key 应保留剩余次数"
@@ -163,11 +159,7 @@ fn tolerance_boundaries() {
 
     // 旋转 ±5°
     for (offset, expect) in [(5.0f32, true), (5.5, false)] {
-        let result = manager
-            .create(Some("rotate"))
-            .unwrap()
-            .generate()
-            .unwrap();
+        let result = manager.create(Some("rotate")).unwrap().generate().unwrap();
         let angle = rotate_angle(&storage, &result.key);
         assert_eq!(
             manager
@@ -180,14 +172,12 @@ fn tolerance_boundaries() {
 
     // 滑块 ±4px
     for (offset, expect) in [(4.0f32, true), (4.5, false)] {
-        let result = manager
-            .create(Some("slider"))
-            .unwrap()
-            .generate()
-            .unwrap();
+        let result = manager.create(Some("slider")).unwrap().generate().unwrap();
         let x = slider_x(&storage, &result.key);
         assert_eq!(
-            manager.verify(&result.key, Answer::Slider(x + offset)).unwrap(),
+            manager
+                .verify(&result.key, Answer::Slider(x + offset))
+                .unwrap(),
             expect,
             "滑块偏移 {offset}px"
         );
@@ -197,11 +187,7 @@ fn tolerance_boundaries() {
 #[test]
 fn attempts_over_the_limit_drop_the_key() {
     let (manager, storage) = manager();
-    let result = manager
-        .create(Some("slider"))
-        .unwrap()
-        .generate()
-        .unwrap();
+    let result = manager.create(Some("slider")).unwrap().generate().unwrap();
     let x = slider_x(&storage, &result.key);
 
     for round in 1..=3 {
@@ -229,17 +215,16 @@ fn expired_captcha_is_gone() {
     config.captcha.ttl_secs = 1;
     let (manager, storage) = manager_with(config);
 
-    let result = manager
-        .create(Some("slider"))
-        .unwrap()
-        .generate()
-        .unwrap();
+    let result = manager.create(Some("slider")).unwrap().generate().unwrap();
     let x = slider_x(&storage, &result.key);
     assert!(manager.image_bytes(&result.key).unwrap().is_some());
 
     std::thread::sleep(std::time::Duration::from_millis(1200));
 
-    assert!(storage.get(&store_key(&result.key)).unwrap().is_none(), "答案已过期");
+    assert!(
+        storage.get(&store_key(&result.key)).unwrap().is_none(),
+        "答案已过期"
+    );
     assert!(manager.image_bytes(&result.key).unwrap().is_none());
     assert!(!manager.verify(&result.key, Answer::Slider(x)).unwrap());
 }
@@ -253,11 +238,7 @@ fn rate_limit_is_cross_key_and_per_identity() {
 
     // 每次换新 key 再猜：单 key 计数拦不住，跨 key 窗口限流才拦得住
     for round in 1..=3 {
-        let result = manager
-            .create(Some("slider"))
-            .unwrap()
-            .generate()
-            .unwrap();
+        let result = manager.create(Some("slider")).unwrap().generate().unwrap();
         let x = slider_x(&storage, &result.key);
         assert!(
             manager
@@ -267,11 +248,7 @@ fn rate_limit_is_cross_key_and_per_identity() {
         );
     }
 
-    let result = manager
-        .create(Some("slider"))
-        .unwrap()
-        .generate()
-        .unwrap();
+    let result = manager.create(Some("slider")).unwrap().generate().unwrap();
     let x = slider_x(&storage, &result.key);
     assert!(
         !manager
@@ -290,11 +267,7 @@ fn rate_limit_is_cross_key_and_per_identity() {
 #[test]
 fn malformed_keys_never_reach_the_storage() {
     let (manager, storage) = manager();
-    let result = manager
-        .create(Some("slider"))
-        .unwrap()
-        .generate()
-        .unwrap();
+    let result = manager.create(Some("slider")).unwrap().generate().unwrap();
     let x = slider_x(&storage, &result.key);
     let before = storage.len();
     assert_eq!(before, 2, "载荷 + 图片");
@@ -304,12 +277,14 @@ fn malformed_keys_never_reach_the_storage() {
         "captcha:0123456789abcdef0123456789abcdef", // 前缀由我们拼，不必自己带
         "",
         "short",
-        &"a".repeat(33),   // 超长
-        &"g".repeat(32),   // 非十六进制
-        &"中".repeat(32),  // 32 字符但 96 字节
+        &"a".repeat(33),  // 超长
+        &"g".repeat(32),  // 非十六进制
+        &"中".repeat(32), // 32 字符但 96 字节
     ] {
         assert!(
-            !manager.verify_as(bad, Answer::Slider(x), "1.2.3.4").unwrap(),
+            !manager
+                .verify_as(bad, Answer::Slider(x), "1.2.3.4")
+                .unwrap(),
             "key = {bad:?} 应直接判失败"
         );
         assert!(manager.image_bytes(bad).unwrap().is_none(), "key = {bad:?}");
@@ -332,11 +307,7 @@ fn concurrent_verifies_have_exactly_one_winner() {
     use std::sync::Barrier;
 
     let (manager, storage) = manager();
-    let result = manager
-        .create(Some("slider"))
-        .unwrap()
-        .generate()
-        .unwrap();
+    let result = manager.create(Some("slider")).unwrap().generate().unwrap();
     let x = slider_x(&storage, &result.key);
 
     let manager = Arc::new(manager);
@@ -382,17 +353,18 @@ fn random_type_resolves_before_generating() {
 #[test]
 fn result_json_uses_contract_key_names() {
     let (manager, _) = manager();
-    let result = manager
-        .create(Some("rotate"))
-        .unwrap()
-        .generate()
-        .unwrap();
+    let result = manager.create(Some("rotate")).unwrap().generate().unwrap();
 
     let value = serde_json::to_value(&result).unwrap();
     assert_eq!(value["type"], "rotate");
     assert!(value["key"].is_string());
     assert!(value["extra"].is_object());
-    assert!(value["image"].as_str().unwrap().starts_with("data:image/png;base64,"));
+    assert!(
+        value["image"]
+            .as_str()
+            .unwrap()
+            .starts_with("data:image/png;base64,")
+    );
     assert!(value.get("url").is_none(), "无出图路由时 url 不出现");
 
     let mut routed = result.clone();
@@ -474,11 +446,7 @@ fn unknown_type_and_mismatched_answer_variant_are_rejected() {
     );
 
     // 答案变体与载荷类型不符 → false（不算错误）
-    let result = manager
-        .create(Some("slider"))
-        .unwrap()
-        .generate()
-        .unwrap();
+    let result = manager.create(Some("slider")).unwrap().generate().unwrap();
     assert!(!manager.verify(&result.key, Answer::Rotate(0.0)).unwrap());
     assert!(
         !manager
@@ -506,7 +474,9 @@ fn image_bytes_are_persisted_for_the_image_endpoint() {
         .strip_prefix("data:image/png;base64,")
         .expect("应是 data URI");
     assert_eq!(
-        base64::engine::general_purpose::STANDARD.decode(b64).unwrap(),
+        base64::engine::general_purpose::STANDARD
+            .decode(b64)
+            .unwrap(),
         png,
         "data URI 与存储里应是同一份字节"
     );

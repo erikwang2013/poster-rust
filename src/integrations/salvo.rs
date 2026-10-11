@@ -122,7 +122,8 @@ impl CaptchaVerifyHandler {
         };
         let identity = client_identity(xff.as_deref(), req.remote_addr().ip());
         let guard = self.guard.clone();
-        match super::run_blocking(move || guard.verify_as(&body.key, body.answer, &identity)).await {
+        match super::run_blocking(move || guard.verify_as(&body.key, body.answer, &identity)).await
+        {
             Ok(pass) => {
                 res.render(salvo::prelude::Json(serde_json::json!({ "pass": pass })));
             }
@@ -146,15 +147,14 @@ pub fn routes(guard: Guard) -> Router {
 pub fn routes_at(guard: Guard, prefix: &str) -> Router {
     Router::new()
         .push(
-            Router::with_path(format!("{prefix}/new"))
-                .get(CaptchaNewHandler { guard: guard.clone() }),
+            Router::with_path(format!("{prefix}/new")).get(CaptchaNewHandler {
+                guard: guard.clone(),
+            }),
         )
         .push(
-            Router::with_path(format!("{prefix}/verify"))
-                .post(CaptchaVerifyHandler { guard: guard.clone() }),
+            Router::with_path(format!("{prefix}/verify")).post(CaptchaVerifyHandler {
+                guard: guard.clone(),
+            }),
         )
-        .push(
-            Router::with_path(format!("{prefix}/{{key}}"))
-                .get(CaptchaImageHandler { guard }),
-        )
+        .push(Router::with_path(format!("{prefix}/{{key}}")).get(CaptchaImageHandler { guard }))
 }

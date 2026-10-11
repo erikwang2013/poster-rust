@@ -26,7 +26,6 @@ pub struct TextElement {
     pub style: TextOptions,
 }
 
-
 impl ElementRender for TextElement {
     fn render(&self, canvas: &mut ImageDriver, _ctx: &RenderCtx<'_>) -> Result<()> {
         canvas.text(&self.text, self.x as f32, self.y as f32, &self.style)

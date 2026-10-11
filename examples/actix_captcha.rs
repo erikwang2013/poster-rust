@@ -7,9 +7,9 @@
 use std::sync::Arc;
 
 use actix_web::{App, HttpServer, web};
+use poster::Guard;
 use poster::captcha::CaptchaManager;
 use poster::integrations::actix::configure;
-use poster::Guard;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

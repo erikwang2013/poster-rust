@@ -33,7 +33,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         manager.image_bytes(&result.key)?.ok_or("图片未持久化")?,
     )?;
     let puzzle = output.join(format!("slider-{}-puzzle.png", result.key));
-    std::fs::write(&puzzle, decode_data_uri(result.extra["puzzle"].as_str().ok_or("缺 puzzle")?)?)?;
+    std::fs::write(
+        &puzzle,
+        decode_data_uri(result.extra["puzzle"].as_str().ok_or("缺 puzzle")?)?,
+    )?;
 
     // 载荷在存储里的键：用户 key 被圈进 `captcha:` 命名空间
     let payload = storage
@@ -51,9 +54,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("正确答案 x = {x}（拼图块 PNG 左上角，容差 ±4px）");
     println!("背景       = {}", background.display());
     println!("拼图块     = {}", puzzle.display());
-    println!("校验(正确) = {}", manager.verify(&result.key, Answer::Slider(x))?);
+    println!(
+        "校验(正确) = {}",
+        manager.verify(&result.key, Answer::Slider(x))?
+    );
     // 一次性：上面那次通过后 key 已删除
-    println!("再校验     = {}", manager.verify(&result.key, Answer::Slider(x))?);
+    println!(
+        "再校验     = {}",
+        manager.verify(&result.key, Answer::Slider(x))?
+    );
 
     Ok(())
 }
@@ -61,6 +70,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// `data:image/png;base64,…` → PNG 字节。
 fn decode_data_uri(uri: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     use base64::Engine;
-    let b64 = uri.strip_prefix("data:image/png;base64,").ok_or("不是 PNG data URI")?;
+    let b64 = uri
+        .strip_prefix("data:image/png;base64,")
+        .ok_or("不是 PNG data URI")?;
     Ok(base64::engine::general_purpose::STANDARD.decode(b64)?)
 }

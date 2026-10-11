@@ -23,11 +23,11 @@
 use std::net::SocketAddr;
 
 use axum::Json;
+use axum::Router;
 use axum::extract::{ConnectInfo, Extension, FromRequestParts, Path, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
-use axum::Router;
 
 use crate::captcha::Answer;
 use crate::guard::{Guard, client_identity};
@@ -51,7 +51,10 @@ where
 {
     type Rejection = StatusCode;
 
-    async fn from_request_parts(_parts: &mut axum::http::request::Parts, state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        _parts: &mut axum::http::request::Parts,
+        state: &S,
+    ) -> Result<Self, Self::Rejection> {
         Ok(state.guard().clone())
     }
 }
@@ -105,7 +108,9 @@ where
 {
     let guard = state.guard().clone();
     let xff = if guard.trust_forwarded_for() {
-        headers.get("x-forwarded-for").and_then(|value| value.to_str().ok())
+        headers
+            .get("x-forwarded-for")
+            .and_then(|value| value.to_str().ok())
     } else {
         None
     };

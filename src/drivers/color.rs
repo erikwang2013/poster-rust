@@ -29,7 +29,11 @@ pub fn parse(color: &str) -> Result<Rgba<u8>> {
 
 /// 透明度 0-1（>1 视为 0-100 写法）夹取后换算为 alpha 字节。
 pub fn opacity_to_alpha(opacity: f32) -> u8 {
-    let v = if opacity > 1.0 { opacity / 100.0 } else { opacity };
+    let v = if opacity > 1.0 {
+        opacity / 100.0
+    } else {
+        opacity
+    };
     ((1.0 - v.clamp(0.0, 1.0)) * 255.0).round() as u8
 }
 

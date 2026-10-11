@@ -58,7 +58,13 @@ fn slider_key_with_answer(guard: &Guard, storage: &MemoryStorage) -> (String, f3
 }
 
 /// 校验请求：断言 200 与 `{"pass": bool}` 的完整形状。
-async fn post_verify(router: &Arc<Router>, key: &str, x: f32, xff: Option<&str>, expect_pass: bool) {
+async fn post_verify(
+    router: &Arc<Router>,
+    key: &str,
+    x: f32,
+    xff: Option<&str>,
+    expect_pass: bool,
+) {
     let mut req = TestClient::post("http://127.0.0.1/captcha/verify")
         .json(&json!({ "key": key, "answer": { "Slider": x } }));
     if let Some(xff) = xff {
@@ -132,7 +138,11 @@ async fn malformed_json_is_rejected_with_400() {
         .raw_json("{ not json")
         .send(router.clone())
         .await;
-    assert_eq!(resp.status_code, Some(StatusCode::BAD_REQUEST), "非法 JSON 应返回 400");
+    assert_eq!(
+        resp.status_code,
+        Some(StatusCode::BAD_REQUEST),
+        "非法 JSON 应返回 400"
+    );
 }
 
 /// 路由回归：`GET /captcha/new` 直接可达——salvo 的子路由按相对段拼接，
@@ -143,7 +153,11 @@ async fn new_endpoint_is_routable_at_flat_path() {
     let mut resp = TestClient::get("http://127.0.0.1/captcha/new")
         .send(router.clone())
         .await;
-    assert_eq!(resp.status_code, Some(StatusCode::OK), "GET /captcha/new 应可达");
+    assert_eq!(
+        resp.status_code,
+        Some(StatusCode::OK),
+        "GET /captcha/new 应可达"
+    );
     let body: serde_json::Value = resp.take_json().await.unwrap();
     assert!(body["key"].is_string(), "生成端点应返回 key");
 }
