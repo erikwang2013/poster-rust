@@ -7,9 +7,9 @@ use serde_json::Value;
 
 use crate::config;
 use crate::drivers::{ImageDriver, ShapeOptions, TextOptions};
-use crate::error::Result;
+use crate::error::{PosterError, Result};
 
-use super::{ElementRender, RenderCtx, cell_text, text_align};
+use super::{ElementRender, MAX_DIM, RenderCtx, bounded, cell_text, text_align};
 
 /// 表格。
 ///
@@ -100,14 +100,27 @@ impl ElementRender for TableElement {
             return Ok(());
         }
 
+        // 几何守卫：列宽/行高/内边距是模板可控的 u32，4e9 级数值会让下面的
+        // i32 累加 debug panic / release 回绕（列宽和另按 u64 求和后再设上限）。
         let columns = if self.columns.is_empty() {
-            let each = self.width / self.header.len() as u32;
+            let each = bounded(self.width, "width")? / self.header.len() as u32;
             vec![each; self.header.len()]
         } else {
             self.columns.clone()
         };
-        let total_width: u32 = columns.iter().sum();
-        let pad = self.cell_padding as i32;
+        for width in &columns {
+            bounded(*width, "columns")?;
+        }
+        let total_width: u64 = columns.iter().map(|&w| w as u64).sum();
+        if total_width > MAX_DIM as u64 {
+            return Err(PosterError::Template(format!(
+                "表格总宽超出上限 {MAX_DIM}，得到 {total_width}"
+            )));
+        }
+        let total_width = total_width as u32;
+        bounded(self.header_height, "headerHeight")?;
+        bounded(self.row_height, "rowHeight")?;
+        let pad = bounded(self.cell_padding, "cellPadding")? as i32;
         let font_size = self.font_size as f32;
         let font = config::resolve_font(ctx.config, self.font.as_deref());
         let even_bg = self
@@ -123,11 +136,13 @@ impl ElementRender for TableElement {
             .or_else(|| self.odd_bg.clone())
             .unwrap_or_else(|| "#FFFFFF".into());
 
-        // 各列起点（多一个收尾位置，供累计计算）
+        // 各列起点（多一个收尾位置，供累计计算）；i64 累加 + 饱和回 i32，
+        // x 取 i32 极值时也不溢出
         let mut col_xs = vec![self.x];
+        let mut acc = self.x as i64;
         for width in &columns {
-            let next = col_xs.last().copied().unwrap_or(self.x) + *width as i32;
-            col_xs.push(next);
+            acc += *width as i64;
+            col_xs.push(acc.clamp(i32::MIN as i64, i32::MAX as i64) as i32);
         }
 
         let fill = |color: &str| ShapeOptions {
@@ -145,12 +160,10 @@ impl ElementRender for TableElement {
         )?;
 
         for (i, header) in self.header.iter().enumerate() {
-            let Some(width) = columns.get(i) else { continue };
-            let align = self
-                .alignments
-                .get(i)
-                .map(String::as_str)
-                .unwrap_or("left");
+            let Some(width) = columns.get(i) else {
+                continue;
+            };
+            let align = self.alignments.get(i).map(String::as_str).unwrap_or("left");
             let cx = cell_x(col_xs[i], *width, align, pad);
             canvas.text(
                 &cell_text(header),
@@ -166,7 +179,7 @@ impl ElementRender for TableElement {
             )?;
         }
 
-        let mut current_y = self.y + self.header_height as i32;
+        let mut current_y = self.y.saturating_add(self.header_height as i32);
         for (ri, row) in self.rows.iter().enumerate() {
             let bg = if ri % 2 == 0 { &even_bg } else { &odd_bg };
             canvas.rectangle(self.x, current_y, total_width, self.row_height, &fill(bg))?;
@@ -195,18 +208,21 @@ impl ElementRender for TableElement {
                 )?;
             }
 
+            let baseline_y = current_y
+                .saturating_add(self.row_height as i32)
+                .saturating_sub(1);
             canvas.line(
                 self.x,
-                current_y + self.row_height as i32 - 1,
-                self.x + total_width as i32 - 1,
-                current_y + self.row_height as i32 - 1,
+                baseline_y,
+                self.x.saturating_add(total_width as i32).saturating_sub(1),
+                baseline_y,
                 &crate::drivers::LineOptions {
                     color: self.border_color.clone(),
                     ..Default::default()
                 },
             )?;
 
-            current_y += self.row_height as i32;
+            current_y = current_y.saturating_add(self.row_height as i32);
         }
         Ok(())
     }
@@ -215,13 +231,13 @@ impl ElementRender for TableElement {
 /// 列内文本锚点：左对齐贴内边距、居中取列中点、右对齐贴列右缘。
 fn cell_x(col_x: i32, col_width: u32, align: &str, pad: i32) -> i32 {
     match align {
-        "center" => col_x + col_width as i32 / 2,
-        "right" => col_x + col_width as i32 - pad,
-        _ => col_x + pad,
+        "center" => col_x.saturating_add(col_width as i32 / 2),
+        "right" => col_x.saturating_add(col_width as i32).saturating_sub(pad),
+        _ => col_x.saturating_add(pad),
     }
 }
 
 /// 文本基线：文字按基线绘制，需下移半个字高才是视觉居中（同 PHP `TableElement::baseline()`）。
 fn baseline(top: i32, height: u32, font_size: f32) -> i32 {
-    top + ((height as f32 + font_size * 0.72) / 2.0) as i32
+    top.saturating_add(((height as f32 + font_size * 0.72) / 2.0) as i32)
 }

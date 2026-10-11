@@ -13,6 +13,7 @@ use crate::error::{PosterError, Result};
 /// 纠错级别，对应 PHP 生成器的 L/M/Q/H。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum EcLevel {
     L,
     #[default]

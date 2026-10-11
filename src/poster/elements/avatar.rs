@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::drivers::{ImageDriver, OverlayOptions, ShapeOptions};
 use crate::error::Result;
 
-use super::{ElementRender, RenderCtx, load_image, positive};
+use super::{ElementRender, RenderCtx, bounded, load_image, positive};
 
 /// 头像。
 ///
@@ -24,7 +24,8 @@ pub struct AvatarElement {
     pub circle: bool,
     /// 边框颜色；`None` / 空串 = 不画边框。
     pub border: Option<String>,
-    /// 边框宽度（px），0 = 不画。
+    /// 边框宽度（px），0 = 不画。别名 `border_width`。
+    #[serde(alias = "border_width")]
     pub border_width: u32,
     /// `radius`（`circle` 时被 `size / 2` 覆盖）/ `shadow` 等叠加选项。
     #[serde(flatten)]
@@ -61,7 +62,9 @@ impl ElementRender for AvatarElement {
 
         // 边框先画在底层，头像盖上去即留出等宽边
         if let Some(border) = self.border.as_deref() {
-            let width = self.border_width;
+            // 几何守卫：borderWidth 模板可控，4e9 级数值会让 `radius + width` /
+            // `size + width * 2` 溢出回绕
+            let width = bounded(self.border_width, "borderWidth")?;
             if !border.is_empty() && width > 0 {
                 let border_opts = ShapeOptions {
                     color: border.to_string(),
@@ -72,16 +75,16 @@ impl ElementRender for AvatarElement {
                     let radius = size / 2;
                     let r = (radius + width) as f32;
                     canvas.ellipse(
-                        self.x + radius as i32,
-                        self.y + radius as i32,
+                        self.x.saturating_add(radius as i32),
+                        self.y.saturating_add(radius as i32),
                         r,
                         r,
                         &border_opts,
                     )?;
                 } else {
                     canvas.rectangle(
-                        self.x - width as i32,
-                        self.y - width as i32,
+                        self.x.saturating_sub(width as i32),
+                        self.y.saturating_sub(width as i32),
                         size + width * 2,
                         size + width * 2,
                         &border_opts,

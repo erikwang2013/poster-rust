@@ -53,9 +53,7 @@ fn painted(canvas: &ImageDriver) -> bool {
 /// 存在某个颜色的像素（容差 40，容忍抗锯齿边缘）。
 fn has_color(hex: &str) -> impl Fn(&Rgba<u8>) -> bool {
     let target = color::parse(hex).expect("颜色");
-    move |pixel: &Rgba<u8>| {
-        (0..3).all(|i| (pixel.0[i] as i32 - target.0[i] as i32).abs() <= 40)
-    }
+    move |pixel: &Rgba<u8>| (0..3).all(|i| (pixel.0[i] as i32 - target.0[i] as i32).abs() <= 40)
 }
 
 /// 宠物图路径（`add_pet` / 图片元素测试用）。
@@ -114,7 +112,10 @@ fn avatar_renders_pet_with_border() {
     assert!(painted(&canvas), "头像应有非白像素");
     assert!(any_pixel(&canvas, has_color("#00FF00")), "应画出边框");
     // 圆形裁剪：正方形外角必须仍是白底
-    assert!(is_white(canvas.image().get_pixel(22, 22)), "圆形裁剪的角应被切掉");
+    assert!(
+        is_white(canvas.image().get_pixel(22, 22)),
+        "圆形裁剪的角应被切掉"
+    );
 }
 
 #[test]
@@ -161,7 +162,10 @@ fn shape_renders_rect_and_circle() {
     let canvas = paint(&circle);
     assert!(any_pixel(&canvas, has_color("#FF00FF")), "应画出实心圆");
     // `x` / `y` 是圆心，圆外的角落仍是白底
-    assert!(is_white(canvas.image().get_pixel(110, 110)), "圆外应保持白底");
+    assert!(
+        is_white(canvas.image().get_pixel(110, 110)),
+        "圆外应保持白底"
+    );
 }
 
 #[test]
@@ -202,7 +206,10 @@ fn table_renders_header_and_rows() {
         x: 20,
         y: 20,
         header: vec![json!("姓名"), json!("分数")],
-        rows: vec![vec![json!("张三"), json!(95)], vec![json!("李四"), json!(88)]],
+        rows: vec![
+            vec![json!("张三"), json!(95)],
+            vec![json!("李四"), json!(88)],
+        ],
         width: 300,
         header_bg: "#2C3E50".into(),
         row_bg: vec!["#FAFAFA".into(), "#FFFFFF".into()],
@@ -217,7 +224,10 @@ fn table_renders_header_and_rows() {
 
 #[test]
 fn chart_renders_all_three_types() {
-    let data = vec![json!({"label": "一月", "value": 10}), json!({"label": "二月", "value": 30})];
+    let data = vec![
+        json!({"label": "一月", "value": 10}),
+        json!({"label": "二月", "value": 30}),
+    ];
 
     for chart_type in ["bar", "pie", "line"] {
         let element = Element::Chart(ChartElement {
@@ -247,15 +257,26 @@ fn chart_rejects_unknown_type() {
     });
     let mut canvas = ImageDriver::filled(100, 100, WHITE).unwrap();
     let err = element
-        .render(&mut canvas, &RenderCtx { config: config::global() })
+        .render(
+            &mut canvas,
+            &RenderCtx {
+                config: config::global(),
+            },
+        )
         .unwrap_err();
-    assert!(err.to_string().contains("radar"), "应报出未知图表类型: {err}");
+    assert!(
+        err.to_string().contains("radar"),
+        "应报出未知图表类型: {err}"
+    );
 }
 
 #[test]
 fn calendar_renders_grid_and_highlight() {
     let mut highlights = std::collections::BTreeMap::new();
-    highlights.insert("2026-10-01".to_string(), json!({"text": "国庆", "bg": "#FFEAA7"}));
+    highlights.insert(
+        "2026-10-01".to_string(),
+        json!({"text": "国庆", "bg": "#FFEAA7"}),
+    );
     let element = Element::Calendar(CalendarElement {
         year: Some(2026),
         month: Some(10),
@@ -268,7 +289,10 @@ fn calendar_renders_grid_and_highlight() {
     });
     let canvas = paint_on(&element, 460, 460);
     assert!(any_pixel(&canvas, has_color("#2C3E50")), "应画出标题栏");
-    assert!(any_pixel(&canvas, has_color("#FFEAA7")), "应画出高亮日期背景");
+    assert!(
+        any_pixel(&canvas, has_color("#FFEAA7")),
+        "应画出高亮日期背景"
+    );
     assert!(painted(&canvas), "应画出日期文字");
 }
 
@@ -281,7 +305,12 @@ fn calendar_rejects_out_of_range_month() {
     });
     let mut canvas = ImageDriver::filled(100, 100, WHITE).unwrap();
     let err = element
-        .render(&mut canvas, &RenderCtx { config: config::global() })
+        .render(
+            &mut canvas,
+            &RenderCtx {
+                config: config::global(),
+            },
+        )
         .unwrap_err();
     assert!(err.to_string().contains("13"), "应报出非法月份: {err}");
 }
@@ -335,7 +364,10 @@ fn icon_falls_back_to_placeholder_text() {
     });
     // 没有 FontAwesome 字体时画 `[heart]` 占位（同 PHP）
     assert!(painted(&paint(&element)), "无图标字体时应画占位文字");
-    assert_eq!(poster::poster::elements::icon::icon_char("heart"), Some('\u{F004}'));
+    assert_eq!(
+        poster::poster::elements::icon::icon_char("heart"),
+        Some('\u{F004}')
+    );
     assert_eq!(poster::poster::elements::icon::icon_char("nope"), None);
 }
 
@@ -357,6 +389,70 @@ fn emoticon_renders_kaomoji() {
         ..Default::default()
     });
     paint(&preset);
+}
+
+/// 元素几何上限：这些数值此前会 u32/i32 溢出（debug panic / release 回绕）
+/// 或天量绘制，现在一律 fail-closed 报模板错误（不 panic）。
+#[test]
+fn oversized_geometry_is_rejected() {
+    let ctx = RenderCtx {
+        config: config::global(),
+    };
+    let cases: Vec<Element> = vec![
+        Element::Table(TableElement {
+            header: vec![json!("a"), json!("b")],
+            rows: vec![vec![json!(1), json!(2)]],
+            columns: vec![4_000_000_000, 4_000_000_000],
+            ..Default::default()
+        }),
+        Element::Chart(ChartElement {
+            data: vec![json!(1), json!(2)],
+            padding: 2_000_000_000,
+            ..Default::default()
+        }),
+        Element::Avatar(AvatarElement {
+            src: pet(),
+            border: Some("#000000".into()),
+            border_width: 4_000_000_000,
+            ..Default::default()
+        }),
+        Element::Calendar(CalendarElement {
+            cell_size: 4_000_000_000,
+            ..Default::default()
+        }),
+    ];
+    for element in cases {
+        let mut canvas = ImageDriver::filled(100, 100, WHITE).unwrap();
+        let err = element.render(&mut canvas, &ctx).unwrap_err();
+        assert!(
+            matches!(err, poster::PosterError::Template(_)),
+            "{}: {err}",
+            element.kind()
+        );
+    }
+}
+
+/// 描边宽度无上限时是 O(width²) 次整行绘制（`strokeWidth: 50000` ≈ 1e10 次，模板可控），
+/// 必须 quick-fail 而不是挂死。
+#[test]
+fn artistic_text_rejects_absurd_stroke_width() {
+    let element = Element::ArtisticText(ArtisticTextElement {
+        text: "艺术字".into(),
+        x: 20,
+        y: 120,
+        stroke_width: 50_000,
+        ..Default::default()
+    });
+    let mut canvas = ImageDriver::filled(WIDTH, HEIGHT, WHITE).unwrap();
+    let err = element
+        .render(
+            &mut canvas,
+            &RenderCtx {
+                config: config::global(),
+            },
+        )
+        .unwrap_err();
+    assert!(matches!(err, poster::PosterError::Template(_)), "{err}");
 }
 
 #[test]

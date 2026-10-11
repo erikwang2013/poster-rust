@@ -7,9 +7,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::config;
 use crate::drivers::{ImageDriver, OverlayOptions, TextAlign, TextOptions, color};
-use crate::error::Result;
+use crate::error::{PosterError, Result};
 
 use super::{ElementRender, RenderCtx};
+
+/// 描边宽度上限：描边按 (ox, oy) 偏移各画一遍文本，是 O(width²) 次整行绘制
+/// （`"strokeWidth": 50000` ≈ 1e10 次，模板可控）。跟随 `watermark.rs` 的 `MAX_TILES`
+/// fail-closed 模式：超限报错，不静默夹取（64 足够覆盖正常描边，129×129 圈仍是秒级）。
+const MAX_STROKE_WIDTH: u32 = 64;
 
 /// 艺术字。
 ///
@@ -30,22 +35,29 @@ pub struct ArtisticTextElement {
     pub style: String,
     pub angle: f32,
     pub color: String,
-    /// 自动换行宽度；0 = 不换行。
+    /// 自动换行宽度；0 = 不换行。别名 `max_width`（历史 snake_case）。
+    #[serde(alias = "max_width")]
     pub max_width: f32,
     pub align: TextAlign,
-    /// 描边色（`stroke`）。
+    /// 描边色（`stroke`）。别名 `stroke_color`。
+    #[serde(alias = "stroke_color")]
     pub stroke_color: String,
-    /// 描边粗细（px，`stroke`）。
+    /// 描边粗细（px，`stroke`）。别名 `stroke_width`。
+    #[serde(alias = "stroke_width")]
     pub stroke_width: u32,
-    /// 阴影色（`shadow`，8 位色带 alpha）。
+    /// 阴影色（`shadow`，8 位色带 alpha）。别名 `shadow_color`。
+    #[serde(alias = "shadow_color")]
     pub shadow_color: String,
-    /// 阴影偏移 x（px，`shadow`）。
+    /// 阴影偏移 x（px，`shadow`）。别名 `shadow_offset_x`。
+    #[serde(alias = "shadow_offset_x")]
     pub shadow_offset_x: i32,
-    /// 阴影偏移 y（px，`shadow`）。
+    /// 阴影偏移 y（px，`shadow`）。别名 `shadow_offset_y`。
+    #[serde(alias = "shadow_offset_y")]
     pub shadow_offset_y: i32,
     /// 渐变终点色（`gradient`）。
     pub color2: String,
-    /// 霓虹光晕色（`neon`）；`None` = 用 `color`。
+    /// 霓虹光晕色（`neon`）；`None` = 用 `color`。别名 `glow_color`。
+    #[serde(alias = "glow_color")]
     pub glow_color: Option<String>,
 }
 
@@ -101,6 +113,12 @@ impl ElementRender for ArtisticTextElement {
 impl ArtisticTextElement {
     /// 描边：先在四周各偏移 `strokeWidth` 画一圈描边色，再压上本色文字。
     fn render_stroke(&self, canvas: &mut ImageDriver, base: &TextOptions) -> Result<()> {
+        if self.stroke_width > MAX_STROKE_WIDTH {
+            return Err(PosterError::Template(format!(
+                "描边宽度过大：{}（上限 {MAX_STROKE_WIDTH}）",
+                self.stroke_width
+            )));
+        }
         let stroke = TextOptions {
             color: self.stroke_color.clone(),
             ..base.clone()
@@ -138,7 +156,10 @@ impl ArtisticTextElement {
 
     /// 霓虹：三层放大的半透明光晕 + 白色主体。
     fn render_neon(&self, canvas: &mut ImageDriver, base: &TextOptions) -> Result<()> {
-        let glow = self.glow_color.clone().unwrap_or_else(|| self.color.clone());
+        let glow = self
+            .glow_color
+            .clone()
+            .unwrap_or_else(|| self.color.clone());
         for i in (1..=3).rev() {
             canvas.text(
                 &self.text,
@@ -194,7 +215,7 @@ impl ArtisticTextElement {
             self.size,
             Rgba([255, 255, 255, 255]),
             0.0,
-        );
+        )?;
 
         // 按 y 逐行上色；只处理不透明度过半的像素（PHP 的 GD alpha < 64）
         let from = color::parse(&self.color)?;

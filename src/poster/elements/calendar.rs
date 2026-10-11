@@ -11,7 +11,7 @@ use crate::config;
 use crate::drivers::{ImageDriver, ShapeOptions, TextAlign, TextOptions};
 use crate::error::{PosterError, Result};
 
-use super::{ElementRender, RenderCtx, cell_text, positive};
+use super::{ElementRender, RenderCtx, bounded, cell_text, positive};
 
 /// 日历。
 ///
@@ -26,9 +26,11 @@ pub struct CalendarElement {
     pub month: Option<u32>,
     pub x: i32,
     pub y: i32,
-    /// 单元格边长（px）。
+    /// 单元格边长（px）。别名 `cell_size`。
+    #[serde(alias = "cell_size")]
     pub cell_size: u32,
-    /// 每周起始：0 = 周日，其它 = 周一。
+    /// 每周起始：0 = 周日，其它 = 周一。别名 `start_day`。
+    #[serde(alias = "start_day")]
     pub start_day: u32,
     /// 字体路径；`None` = 配置默认字体。
     pub font: Option<PathBuf>,
@@ -36,16 +38,29 @@ pub struct CalendarElement {
     pub title: Option<String>,
     /// 日期高亮：`"2026-10-01": "国庆"` 或 `{"text": "国庆", "bg": "#FFEAA7"}`。
     pub highlights: BTreeMap<String, Value>,
+    /// 别名 `header_bg`。
+    #[serde(alias = "header_bg")]
     pub header_bg: String,
+    /// 别名 `header_color`。
+    #[serde(alias = "header_color")]
     pub header_color: String,
+    /// 别名 `cell_bg`。
+    #[serde(alias = "cell_bg")]
     pub cell_bg: String,
+    /// 别名 `cell_border`。
+    #[serde(alias = "cell_border")]
     pub cell_border: String,
-    /// 今天所在格的背景色。
+    /// 今天所在格的背景色。别名 `today_bg`。
+    #[serde(alias = "today_bg")]
     pub today_bg: String,
-    /// 高亮日期所在格的默认背景色。
+    /// 高亮日期所在格的默认背景色。别名 `highlight_bg`。
+    #[serde(alias = "highlight_bg")]
     pub highlight_bg: String,
+    /// 别名 `text_color`。
+    #[serde(alias = "text_color")]
     pub text_color: String,
-    /// 空白格（月初 / 月末）底色。
+    /// 空白格（月初 / 月末）底色。别名 `dim_color`。
+    #[serde(alias = "dim_color")]
     pub dim_color: String,
 }
 
@@ -83,9 +98,8 @@ impl ElementRender for CalendarElement {
                 "日历月份必须在 1-12，得到 {month}"
             )));
         }
-        let first = NaiveDate::from_ymd_opt(year, month, 1).ok_or_else(|| {
-            PosterError::Template(format!("日历日期非法: {year}-{month:02}"))
-        })?;
+        let first = NaiveDate::from_ymd_opt(year, month, 1)
+            .ok_or_else(|| PosterError::Template(format!("日历日期非法: {year}-{month:02}")))?;
         let days_in_month = days_in_month(year, month);
         let first_dow = first.weekday().num_days_from_sunday();
         let adjusted_dow = if self.start_day == 0 {
@@ -95,7 +109,8 @@ impl ElementRender for CalendarElement {
         };
         let today = now.format("%Y-%m-%d").to_string();
 
-        let cell_size = positive(self.cell_size, "cellSize")?;
+        // 几何守卫：单元格边长模板可控，`cell * 7` / 行累加在 4e9 级数值下溢出
+        let cell_size = bounded(positive(self.cell_size, "cellSize")?, "cellSize")?;
         let cell = cell_size as i32;
         let cell_f = cell_size as f32;
         let font = config::resolve_font(ctx.config, self.font.as_deref());
@@ -113,7 +128,13 @@ impl ElementRender for CalendarElement {
             .title
             .clone()
             .unwrap_or_else(|| format!("{year}年{month}月"));
-        canvas.rectangle(self.x, self.y, width as u32, cell_size, &fill(&self.header_bg))?;
+        canvas.rectangle(
+            self.x,
+            self.y,
+            width as u32,
+            cell_size,
+            &fill(&self.header_bg),
+        )?;
         canvas.text(
             &title,
             (self.x + width / 2) as f32,
@@ -144,13 +165,7 @@ impl ElementRender for CalendarElement {
 
                 if (row == 0 && col < adjusted_dow as i32) || day > days_in_month {
                     // 留白格用 dimColor，与有值格拉开层次
-                    canvas.rectangle(
-                        cx,
-                        row_y,
-                        cell_size,
-                        cell_size,
-                        &fill(&self.dim_color),
-                    )?;
+                    canvas.rectangle(cx, row_y, cell_size, cell_size, &fill(&self.dim_color))?;
                     canvas.rectangle(
                         cx,
                         row_y,
@@ -175,13 +190,7 @@ impl ElementRender for CalendarElement {
                 };
 
                 canvas.rectangle(cx, row_y, cell_size, cell_size, &fill(&bg))?;
-                canvas.rectangle(
-                    cx,
-                    row_y,
-                    cell_size,
-                    cell_size,
-                    &stroke(&self.cell_border),
-                )?;
+                canvas.rectangle(cx, row_y, cell_size, cell_size, &stroke(&self.cell_border))?;
 
                 let weekend = if self.start_day == 0 {
                     col == 0 || col == 6
@@ -200,7 +209,12 @@ impl ElementRender for CalendarElement {
                     &day.to_string(),
                     (cx + 8) as f32,
                     (row_y + (cell_f * 0.3) as i32) as f32,
-                    &self.text_opts((cell_f * 0.28) as i32 as f32, day_color, TextAlign::Left, &font),
+                    &self.text_opts(
+                        (cell_f * 0.28) as i32 as f32,
+                        day_color,
+                        TextAlign::Left,
+                        &font,
+                    ),
                 )?;
 
                 if let Some(highlight) = self.highlights.get(&date) {
