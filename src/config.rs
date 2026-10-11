@@ -357,7 +357,8 @@ mod tests {
     /// 每个违规项都必须报 `PosterError::Config`，且信息里带上字段名。
     #[test]
     fn validate_rejects_each_out_of_range_field() {
-        let cases: [(&str, fn(&mut PosterConfig)); 7] = [
+        type Case = (&'static str, fn(&mut PosterConfig));
+        let cases: [Case; 7] = [
             ("captcha.ttl_secs", |c| c.captcha.ttl_secs = 0),
             ("captcha.max_attempts", |c| c.captcha.max_attempts = 0),
             ("captcha.redis_prefix", |c| c.captcha.redis_prefix.clear()),

@@ -12,7 +12,7 @@
 //! `max <= 0` 或 `window_secs == 0` 视为关闭限流（全量放行）。
 
 use std::collections::hash_map::RandomState;
-use std::hash::{BuildHasher, Hash, Hasher};
+use std::hash::BuildHasher;
 use std::sync::OnceLock;
 use std::time::Duration;
 
@@ -63,9 +63,7 @@ pub(crate) fn allow(
 /// 身份 → 定长计数键。用进程级 `RandomState`（随机种子的 SipHash-1-3）：
 /// 只为定长，不为抗碰撞——但要防「可离线复算」。
 fn hash_identity(identity: &str) -> u64 {
-    let mut hasher = HASH_STATE.get_or_init(RandomState::new).build_hasher();
-    identity.hash(&mut hasher);
-    hasher.finish()
+    HASH_STATE.get_or_init(RandomState::new).hash_one(identity)
 }
 
 #[cfg(test)]
