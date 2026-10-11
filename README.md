@@ -35,7 +35,7 @@ poster-rust 是一个 Rust 图像工具包，只做两件事，并且做到够�
 
 ```
 poster-rust/
-├── src/                        # 51 个文件 / 约 8900 行
+├── src/                        # 51 个文件 / 约 9800 行
 │   ├── lib.rs                  # 导出 + 辅助函数（captcha_create / captcha_verify / poster_create）
 │   ├── captcha/                # 验证码模块：4 种类型 + 工厂 + 管理器 + 限流 + 轨迹校验
 │   │   ├── click.rs            #   点击验证（文字 / 11 种程序化图标目标）
@@ -55,7 +55,7 @@ poster-rust/
 │   ├── mascot.rs               # 项目宠物 Posty：NAME / TAGLINE / art() / greet()
 │   └── assets.rs               # 内置素材：宠物 / 6 张背景 / 默认字体（阿里巴巴普惠体）
 ├── assets/                     # pet.svg（README 顶部与文档图标）/ pet.png / backgrounds / fonts
-├── tests/                      # 集成测试 8 套 / 147 用例，目录结构与 src/ 镜像
+├── tests/                      # 集成测试 11 套 / 80 用例（另 src/ 内 99 个单元测试 + 12 个文档测试）
 ├── examples/                   # 9 个可运行示例（含 axum / actix 服务、Social Preview 生成器）
 ├── scripts/                    # gen-diagrams.py：生成 docs/ 下的中英 SVG 图
 └── docs/                       # 中英架构图（SVG）/ architecture.md / Social Preview / 赞赏码
@@ -547,12 +547,21 @@ use poster::{Guard, captcha::CaptchaManager};
 let guard = Guard::from_manager(Arc::new(CaptchaManager::new()?))?;  // 接线期快速失败（存储探针）
 ```
 
-**限流身份**：校验端点的限流按请求身份分桶——`X-Forwarded-For` 第一段 → 对端 IP → `"unknown"`，
-由 `poster::guard::client_identity()` 派生，多用户服务不会互相挤占配额。
+**限流身份**：校验端点的限流按请求身份分桶，由 `poster::guard::client_identity()` 派生。
+**默认只信对端 IP**——`X-Forwarded-For` 是客户端可伪造的头，不显式开启就完全不采信：
+直连时每个客户端各占一个桶，而**经反向代理时所有真实客户端会共用代理 IP 这一个桶**，
+需要按真实客户端分桶时再开启下面的开关。
 
-> ⚠️ `X-Forwarded-For` 是客户端可伪造的头：直接暴露公网时请在可信代理层剥离/覆写它，
-> 或不用它（此时按对端 IP 分桶；axum 需挂 `into_make_service_with_connect_info::<SocketAddr>()`，
-> 否则退化为所有人共用一个 `"unknown"` 桶）。需要 session / uid 级身份时，
+```rust
+// 只在「可信反向代理 + 覆写（而非追加）X-Forwarded-For」的部署里开启
+let guard = guard.with_trust_forwarded_for(true);
+```
+
+> ⚠️ 开启后身份取 `X-Forwarded-For` 第一段 → 对端 IP → `"unknown"`。**只应在可信反向代理
+> 覆写该头的部署中开启**：代理若只是「追加」，客户端仍可自带一段伪造值顶在首位，限流桶会被
+> 攻击者逐个绕过；直接暴露公网时保持默认（不采信）。另外 axum 需挂
+> `into_make_service_with_connect_info::<SocketAddr>()` 才能拿到对端 IP，
+> 否则退化为所有人共用一个 `"unknown"` 桶。需要 session / uid 级身份时，
 > 直接调用 `Guard::verify_as(key, answer, identity)` 自行传入。
 
 ### axum
@@ -620,8 +629,12 @@ use poster::config::{self, PosterConfig};
 let mut cfg = PosterConfig::default();
 cfg.captcha.ttl_secs = 600;
 cfg.captcha.rate_limit.max = 60;
-config::set_global(cfg)?;   // 进程级一次
+config::set_global(cfg)?;   // 进程级一次（先过 PosterConfig::validate()）
 ```
+
+`set_global` 会先做一次区间校验：`ttl_secs` / `max_attempts` 为 0、质量/压缩级别越界、
+默认画布为 0 或超出像素预算、`redis_prefix` 为空等会直接返回 `PosterError::Config`（不会静默生效）。
+`rate_limit` 全 0 是文档化的「关闭限流」，不算违规。外部 JSON 配置可先调 `cfg.validate()?` 自检。
 
 主要配置项（键名对齐 PHP 版 `config/poster.php`）：
 

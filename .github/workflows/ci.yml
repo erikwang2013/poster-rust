@@ -13,12 +13,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # 历史代码未统一跑过 rustfmt，暂时只报告不阻断；
-  # 全量 `cargo fmt` 落地后删掉 continue-on-error 转正。
   fmt:
     name: rustfmt
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -54,3 +51,18 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --verbose ${{ matrix.features }}
+
+  # 单 feature 编译护栏：每个集成/后端 feature 单独开启都能编译。
+  # 历史上出过「全特性 CI 绿、单 feature 红」的回归（f59cec6 / 504f9cc / 7919bc7）。
+  features:
+    name: check (${{ matrix.feature }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        feature: [axum, actix, rocket, poem, salvo, warp, bee-rust, ecat, redis]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --no-default-features --features ${{ matrix.feature }} --locked

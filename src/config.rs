@@ -17,8 +17,11 @@ use serde::{Deserialize, Serialize};
 use crate::error::{PosterError, Result};
 
 /// 背景图来源，对应 PHP `captcha.background_dir` 的三级优先级。
+///
+/// `#[non_exhaustive]`：新增来源（如网络图源）不算破坏性变更；下游穷举 `match` 需保留通配臂。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum BackgroundSource {
     /// 使用随包分发的 6 张内置背景（PHP 默认指向 `assets/backgrounds/`）。
     #[default]
@@ -30,8 +33,11 @@ pub enum BackgroundSource {
 }
 
 /// 缺图占位，对应 PHP `poster.placeholder`。
+///
+/// `#[non_exhaustive]`：新增占位不算破坏性变更；下游穷举 `match` 需保留通配臂。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Placeholder {
     /// 画项目宠物 Posty（PHP 里把 placeholder 指向 `assets/pet.png` 的语义）。
     Pet,
@@ -226,8 +232,65 @@ pub struct PosterConfig {
 
 static GLOBAL: OnceLock<PosterConfig> = OnceLock::new();
 
-/// 设置进程级全局配置（只能设置一次）。
+impl PosterConfig {
+    /// 校验配置的合法区间，全部违规项返回 [`PosterError::Config`]（信息带具体字段名）。
+    ///
+    /// [`set_global`] 会先调用它；反序列化外部配置后也可单独自检。
+    ///
+    /// 注意 `captcha.rate_limit.max == 0` / `window_secs == 0` 是**文档化的「关闭限流」语义**，
+    /// 这里不拒绝。
+    pub fn validate(&self) -> Result<()> {
+        let bad = |msg: String| -> Result<()> { Err(PosterError::Config(msg)) };
+
+        if self.captcha.ttl_secs == 0 {
+            return bad("captcha.ttl_secs 不能为 0：验证码会立即过期，永远无法通过校验".into());
+        }
+        if self.captcha.max_attempts == 0 {
+            return bad("captcha.max_attempts 不能为 0：首次校验计数即超限，永远不会放行".into());
+        }
+        if self.captcha.redis_prefix.is_empty() {
+            return bad("captcha.redis_prefix 不能为空：Redis 存储需要非空键前缀".into());
+        }
+        if self.image.quality > 100 {
+            return bad(format!(
+                "image.quality 必须在 0-100 之间，当前 {}",
+                self.image.quality
+            ));
+        }
+        if self.poster.jpeg_quality > 100 {
+            return bad(format!(
+                "poster.jpeg_quality 必须在 0-100 之间，当前 {}",
+                self.poster.jpeg_quality
+            ));
+        }
+        if self.poster.png_compression > 9 {
+            return bad(format!(
+                "poster.png_compression 必须在 0-9 之间，当前 {}",
+                self.poster.png_compression
+            ));
+        }
+        let (w, h) = (self.poster.default_width, self.poster.default_height);
+        if w == 0 || h == 0 {
+            return bad(format!(
+                "poster.default_width / default_height 不能为 0，当前 {w}x{h}"
+            ));
+        }
+        // 与 drivers::canvas 的像素预算保持一致（那里在构造画布时再兜一次）
+        if u64::from(w) * u64::from(h) > MAX_CANVAS_PIXELS {
+            return bad(format!(
+                "poster 默认画布 {w}x{h} 超出像素预算 {MAX_CANVAS_PIXELS}"
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// 画布像素预算，与 `drivers::canvas` 的 `MAX_PIXELS` 对齐。
+const MAX_CANVAS_PIXELS: u64 = 40_000_000;
+
+/// 设置进程级全局配置（只能设置一次）。配置非法时返回 [`PosterError::Config`]。
 pub fn set_global(config: PosterConfig) -> Result<()> {
+    config.validate()?;
     GLOBAL
         .set(config)
         .map_err(|_| PosterError::Config("全局配置已设置，不能重复设置".into()))
@@ -278,6 +341,60 @@ mod tests {
         let json = serde_json::to_string(&c).unwrap();
         let back: PosterConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(c, back);
+    }
+
+    #[test]
+    fn validate_accepts_defaults_and_documented_rate_limit_off() {
+        assert!(PosterConfig::default().validate().is_ok());
+
+        // `rate_limit` 全 0 是文档化的「关闭限流」，不是错误。
+        let mut c = PosterConfig::default();
+        c.captcha.rate_limit.max = 0;
+        c.captcha.rate_limit.window_secs = 0;
+        assert!(c.validate().is_ok());
+    }
+
+    /// 每个违规项都必须报 `PosterError::Config`，且信息里带上字段名。
+    #[test]
+    fn validate_rejects_each_out_of_range_field() {
+        let cases: [(&str, fn(&mut PosterConfig)); 7] = [
+            ("captcha.ttl_secs", |c| c.captcha.ttl_secs = 0),
+            ("captcha.max_attempts", |c| c.captcha.max_attempts = 0),
+            ("captcha.redis_prefix", |c| c.captcha.redis_prefix.clear()),
+            ("image.quality", |c| c.image.quality = 101),
+            ("poster.jpeg_quality", |c| c.poster.jpeg_quality = 101),
+            ("poster.png_compression", |c| c.poster.png_compression = 10),
+            ("poster.default_width", |c| c.poster.default_width = 0),
+        ];
+        for (field, break_it) in cases {
+            let mut c = PosterConfig::default();
+            break_it(&mut c);
+            match c.validate() {
+                Err(PosterError::Config(msg)) => {
+                    assert!(
+                        msg.contains(field),
+                        "字段 {field} 的报错信息没带字段名: {msg}"
+                    )
+                }
+                other => panic!("{field} 违规应报 Config 错误，实际 {other:?}"),
+            }
+        }
+
+        // 默认高度为 0，以及宽高各自合法但乘积超出像素预算。
+        let mut c = PosterConfig::default();
+        c.poster.default_height = 0;
+        assert!(matches!(c.validate(), Err(PosterError::Config(_))));
+
+        let mut c = PosterConfig::default();
+        c.poster.default_width = 20_000;
+        c.poster.default_height = 20_000; // 4e8 > 4e7
+        assert!(matches!(c.validate(), Err(PosterError::Config(_))));
+
+        // 预算边界本身（恰好 4e7）放行。
+        let mut c = PosterConfig::default();
+        c.poster.default_width = 8_000;
+        c.poster.default_height = 5_000; // == 4e7
+        assert!(c.validate().is_ok());
     }
 
     #[test]

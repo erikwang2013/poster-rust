@@ -3,7 +3,10 @@
 //! 对应 PHP 版的异常抛出点：驱动操作、配置、模板、验证码、存储。
 
 /// poster-rust 统一错误类型。
+///
+/// `#[non_exhaustive]`：新增错误变体不算破坏性变更；下游穷举 `match` 需保留通配臂。
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum PosterError {
     /// 图像解码 / 编码 / 尺寸错误。
     #[error("图像错误: {0}")]

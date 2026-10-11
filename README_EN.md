@@ -35,7 +35,7 @@ poster-rust is a Rust image toolkit that does two things, and does them well:
 
 ```
 poster-rust/
-├── src/                        # 51 files / ~8,900 lines
+├── src/                        # 51 files / ~9,800 lines
 │   ├── lib.rs                  # Exports + helpers (captcha_create / captcha_verify / poster_create)
 │   ├── captcha/                # 4 types + factory + manager + rate limiter + trajectory
 │   │   ├── click.rs            #   Click (text / 11 procedural icon targets)
@@ -52,7 +52,7 @@ poster-rust/
 │   ├── mascot.rs               # Mascot Posty: NAME / TAGLINE / art() / greet()
 │   └── assets.rs               # Bundled: mascot / 6 backgrounds / default font
 ├── assets/                     # pet.svg (README + docs icon) / pet.png / backgrounds / fonts
-├── tests/                      # 8 suites / 147 cases, mirroring src/
+├── tests/                      # 11 integration suites / 80 cases (+ 99 unit tests in src/, 12 doctests)
 ├── examples/                   # 9 runnable examples (incl. axum / actix servers, social preview)
 ├── scripts/                    # gen-diagrams.py: builds the zh/en SVG diagrams
 └── docs/                       # SVG diagrams (zh+en) / architecture.md / social preview / donate codes
@@ -271,14 +271,24 @@ use poster::{Guard, captcha::CaptchaManager};
 let guard = Guard::from_manager(Arc::new(CaptchaManager::new()?))?;  // fails fast (storage probe)
 ```
 
-**Rate-limit identity**: verification endpoints bucket the rate limit per request identity —
-first hop of `X-Forwarded-For` → peer IP → `"unknown"`, derived by
-`poster::guard::client_identity()`, so multi-user services no longer share one global quota.
+**Rate-limit identity**: verification endpoints bucket the rate limit per request identity,
+derived by `poster::guard::client_identity()`. **By default only the peer IP is trusted** —
+`X-Forwarded-For` is client-spoofable, so it is ignored unless explicitly opted in: direct
+connections get one bucket each, while **behind a reverse proxy every real client shares the
+proxy's single bucket**. Opt in below when you need per-client buckets.
 
-> ⚠️ `X-Forwarded-For` is client-spoofable: behind a public edge, strip/overwrite it at a trusted
-> proxy or ignore it (identity then falls back to the peer IP; with axum, mount
-> `into_make_service_with_connect_info::<SocketAddr>()` or everyone shares the `"unknown"` bucket).
-> For session / uid identity, call `Guard::verify_as(key, answer, identity)` directly.
+```rust
+// Opt in only behind a trusted reverse proxy that *overwrites* (not appends) X-Forwarded-For
+let guard = guard.with_trust_forwarded_for(true);
+```
+
+> ⚠️ Once enabled, identity is the first hop of `X-Forwarded-For` → peer IP → `"unknown"`.
+> **Enable it only where a trusted reverse proxy overwrites that header**: if the proxy merely
+> *appends*, a client can still smuggle a forged first hop and rotate through rate-limit buckets.
+> Keep the default when the service is exposed directly. With axum, mount
+> `into_make_service_with_connect_info::<SocketAddr>()` so the peer IP is available, or everyone
+> shares the `"unknown"` bucket. For session / uid identity, call
+> `Guard::verify_as(key, answer, identity)` directly.
 
 ### axum
 
@@ -334,8 +344,14 @@ use poster::config::{self, PosterConfig};
 
 let mut cfg = PosterConfig::default();
 cfg.captcha.ttl_secs = 600;
-config::set_global(cfg)?;
+config::set_global(cfg)?;   // once per process (runs PosterConfig::validate() first)
 ```
+
+`set_global` validates ranges first: a zero `ttl_secs` / `max_attempts`, out-of-range quality
+or compression levels, a zero or over-budget default canvas, an empty `redis_prefix` and the like
+return `PosterError::Config` instead of silently taking effect. An all-zero `rate_limit` is the
+documented "rate limiting off" value and is not an error. Validate external JSON configs with
+`cfg.validate()?`.
 
 Key options (aligned with PHP's `config/poster.php`):
 
