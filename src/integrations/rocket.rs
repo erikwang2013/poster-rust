@@ -66,7 +66,7 @@ pub async fn captcha_image(guard: Guard, key: String) -> Result<CaptchaImageResp
 
 /// 生成端点：`GET {path}/new?type=click` → JSON。
 ///
-/// 查询参数名与其余框架 / PHP 版一致为 `type`（Rust 关键字参数用 `r#type` 绑定，
+/// 查询参数名与其余框架一致为 `type`（Rust 关键字参数用 `r#type` 绑定，
 /// 路由属性里的名字仍是 `type`）。
 #[rocket::get("/captcha/new?<type>")]
 pub async fn captcha_new(

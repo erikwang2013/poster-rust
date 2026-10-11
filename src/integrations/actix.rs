@@ -113,7 +113,7 @@ pub async fn captcha_new(
     }
 }
 
-/// 注册三条路由（默认前缀 `/captcha`，与 PHP 版 `captcha.route.path` 对应）。
+/// 注册三条路由（默认前缀 `/captcha`）。
 pub fn configure(cfg: &mut ServiceConfig) {
     configure_at(cfg, "/captcha");
 }

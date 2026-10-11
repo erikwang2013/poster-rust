@@ -56,7 +56,7 @@ where
     }
 }
 
-/// `GET {path}/{key}` → PNG（`Cache-Control: no-store`），等价 PHP 版 `captcha.route`。
+/// `GET {path}/{key}` → PNG（`Cache-Control: no-store`）。
 pub async fn captcha_image<S>(State(state): State<S>, Path(key): Path<String>) -> Response
 where
     S: GuardState + Clone + Send + Sync + 'static,
@@ -134,7 +134,7 @@ where
 
 /// 一次性注册三条路由：`GET {path}/{key}`、`POST {path}/verify`、`GET {path}/new`。
 ///
-/// `path` 传前缀（默认 `/captcha`），与 PHP 版 `captcha.route.path` 对应。
+/// `path` 传前缀（默认 `/captcha`）。
 pub fn captcha_routes<S>() -> Router<S>
 where
     S: GuardState + Clone + Send + Sync + 'static,

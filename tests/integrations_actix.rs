@@ -88,7 +88,7 @@ async fn generate_serve_and_verify_roundtrip() {
     .await;
     assert_eq!(resp.status(), StatusCode::OK);
     let json: serde_json::Value = read_body_json(resp).await;
-    assert_eq!(json["type"], "slider", "载荷类型键与 PHP 对齐为 type");
+    assert_eq!(json["type"], "slider", "载荷类型键应为 type");
     let key = json["key"].as_str().expect("生成结果应有 key").to_string();
 
     // 2. 出图：GET /captcha/{key} → PNG + no-store

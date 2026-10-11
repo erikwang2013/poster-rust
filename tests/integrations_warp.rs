@@ -39,7 +39,7 @@ fn rate_limited_guard_trusting_xff() -> (Guard, Arc<MemoryStorage>) {
 fn slider_key_with_answer(guard: &Guard, storage: &MemoryStorage) -> (String, f32) {
     let result = guard.create(Some("slider")).unwrap().generate().unwrap();
     let payload = storage
-        .get(&result.key)
+        .get(&format!("captcha:{}", result.key))
         .unwrap()
         .expect("载荷应已落存储")
         .json()
