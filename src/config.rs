@@ -1,4 +1,4 @@
-//! 配置：默认值 + 全局覆盖，键名与 PHP 版 `config/poster.php` 一一对应。
+//! 配置：默认值 + 全局覆盖，分为 `image` / `captcha` / `poster` 三段。
 //!
 //! 用法：
 //! ```no_run
@@ -16,30 +16,30 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{PosterError, Result};
 
-/// 背景图来源，对应 PHP `captcha.background_dir` 的三级优先级。
+/// 背景图来源，三种取值：内置背景 / 自定义目录 / 程序化生成。
 ///
 /// `#[non_exhaustive]`：新增来源（如网络图源）不算破坏性变更；下游穷举 `match` 需保留通配臂。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum BackgroundSource {
-    /// 使用随包分发的 6 张内置背景（PHP 默认指向 `assets/backgrounds/`）。
+    /// 使用随包分发的 6 张内置背景（源文件在 `assets/backgrounds/`）。
     #[default]
     Embedded,
     /// 使用自定义目录（放 png/jpg/gif/webp，随机选用）。
     Dir(PathBuf),
-    /// 程序化生成（PHP 里 `background_dir = null` 的语义）。
+    /// 程序化生成（不读任何图片文件）。
     Procedural,
 }
 
-/// 缺图占位，对应 PHP `poster.placeholder`。
+/// 缺图占位。
 ///
 /// `#[non_exhaustive]`：新增占位不算破坏性变更；下游穷举 `match` 需保留通配臂。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum Placeholder {
-    /// 画项目宠物 Posty（PHP 里把 placeholder 指向 `assets/pet.png` 的语义）。
+    /// 画项目宠物 Posty（内嵌的 `assets/pet.png`）。
     Pet,
     /// 画指定图片。
     Path(PathBuf),
@@ -64,7 +64,7 @@ impl Default for ImageOptions {
     }
 }
 
-/// 验证误差容忍（像素/角度），对应 PHP `captcha.tolerance`。
+/// 验证误差容忍（像素/角度）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ToleranceOptions {
@@ -86,7 +86,7 @@ impl Default for ToleranceOptions {
     }
 }
 
-/// 会话/账号级窗口限流，对应 PHP `captcha.rate_limit`。
+/// 会话/账号级窗口限流。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RateLimitOptions {
@@ -105,7 +105,7 @@ impl Default for RateLimitOptions {
     }
 }
 
-/// 行为轨迹校验，对应 PHP `captcha.trajectory`（默认关闭）。
+/// 行为轨迹校验（默认关闭）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TrajectoryOptions {
@@ -184,7 +184,7 @@ impl Default for CaptchaOptions {
     }
 }
 
-/// 默认点击文字池，与 PHP `captcha.click_words` 逐字一致。
+/// 默认点击文字池（28 个单字）。
 pub const DEFAULT_CLICK_WORDS: [&str; 28] = [
     "合", "家", "欢", "乐", "良", "辰", "美", "景", "千", "变", "万", "化", "心", "有", "灵",
     "犀", "五", "湖", "四", "海", "山", "川", "美", "景", "花", "好", "月", "圆",
@@ -221,7 +221,7 @@ impl Default for PosterOptions {
     }
 }
 
-/// 根配置，键名与 PHP `config/poster.php` 对齐。
+/// 根配置：`image` / `captcha` / `poster` 三段。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct PosterConfig {
@@ -314,7 +314,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn defaults_match_php_config() {
+    fn defaults_match_documented_values() {
         let c = PosterConfig::default();
         assert_eq!(c.captcha.ttl_secs, 300);
         assert_eq!(c.captcha.max_attempts, 3);

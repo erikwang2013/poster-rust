@@ -5,7 +5,7 @@
 ## [1.1.2] - 2026-10-07
 
 ### 文档
-- README（中 / 英）移除「与 PHP 版的差异」章节。
+- README（中 / 英）移除实现差异对照章节。
 - 项目宠物下方新增语言标签：Rust 1.85+ · edition 2024（项目语言）与文档语言互链
   （shields.io 徽章，三个链接已验证均返回 200）。
 
@@ -57,8 +57,8 @@
 - docs.rs 元数据 `all-features = true`：8 个框架集成与 Redis 相关 API 进入在线文档。
 
 ### 性能
-- **海报渲染结果缓存**（对齐 PHP 的 `$rendered` 语义）：同一 Builder 上重复 `render()` /
-  `save()` / `output()` 只渲染一次，任何元素 / 背景 / 尺寸变更使缓存失效。
+- **海报渲染结果缓存**：同一 Builder 上重复 `render()` / `save()` / `output()` 只渲染一次，
+  任何元素 / 背景 / 尺寸变更使缓存失效。
   示例里的多次输出调用（save×2 + output）实测合并为 1 次渲染（release，wall ~1.8s → ~0.25s），
   输出逐字节一致。
 - **字形 / 整行渲染缓存**：同字号同文本只栅格化一次（覆盖分档：0 跳过、1 直写），
@@ -75,11 +75,11 @@
   难度分级、自定义背景与文字池，纯 Rust 生成图片与答案，不依赖第三方服务。
 - **海报生成**：链式 Builder API，14 种元素（文字、艺术字、图片、头像、二维码、形状、
   线条、水印、表格、图表、日历、Emoji、颜文字、图标）与 JSON 模板系统，
-  模板键名与 PHP 版逐字一致、可互相读写。
+  模板键名逐字固定，导出与导入可互相读写。
 - **请求守卫**：原生 `Guard`（框架无关，接线期构造、请求期克隆）+ axum / actix-web /
   rocket / poem / salvo / warp / bee-rust / e-cat 八个框架集成，均以可选 feature 提供。
 - **存储后端**：Memory / File（原子写）/ Redis，`Storage` trait 可替换。
-- 辅助函数 `captcha_create` / `captcha_verify` / `poster_create`，对应 PHP 版同名函数。
+- 辅助函数 `captcha_create` / `captcha_verify` / `poster_create`。
 - 内置素材：项目宠物 Posty（PNG / SVG，内嵌）、6 张验证码背景（内嵌）、
   默认中文字体阿里巴巴普惠体。
 - 中英双语文档 + 架构 / 功能设计图。

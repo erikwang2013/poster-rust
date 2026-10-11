@@ -40,7 +40,7 @@ poster-rust/
 │   ├── captcha/                # 4 types + factory + manager + rate limiter + trajectory
 │   │   ├── click.rs            #   Click (text / 11 procedural icon targets)
 │   │   ├── rotate.rs           #   Rotate (±5° tolerance, circular shortest-arc)
-│   │   ├── slider.rs           #   Slider (square / jigsaw, ported line-by-line from PHP)
+│   │   ├── slider.rs           #   Slider (square / jigsaw puzzle shapes)
 │   │   └── manager.rs          #   CaptchaManager: generate / verify / serve (Send + Sync)
 │   ├── poster/                 # Builder + Template + 14 element renderers
 │   ├── drivers/                # Canvas (image crate) / TTF text (ab_glyph) / color
@@ -48,7 +48,7 @@ poster-rust/
 │   ├── integrations/           # axum / actix / rocket / poem / salvo / warp / bee_rust / ecat
 │   ├── guard.rs                # Native Guard (framework-agnostic, fails fast at wiring)
 │   ├── qrcode.rs               # QR codes (qrcode crate, exact pixel size)
-│   ├── config.rs               # Config (key names aligned with PHP's config/poster.php)
+│   ├── config.rs               # Config (image / captcha / poster sections, serde-serializable)
 │   ├── mascot.rs               # Mascot Posty: NAME / TAGLINE / art() / greet()
 │   └── assets.rs               # Bundled: mascot / 6 backgrounds / default font
 ├── assets/                     # pet.svg (README + docs icon) / pet.png / backgrounds / fonts
@@ -122,7 +122,7 @@ Fluent Builder API with 14 element types:
 cargo add poster-rust
 ```
 
-Requires Rust ≥ 1.85 (edition 2024). All dependencies are pure Rust — no GD / ImageMagick or other system libraries.
+Requires Rust ≥ 1.85 (edition 2024). All dependencies are pure Rust — no system image libraries.
 
 Optional features:
 
@@ -200,7 +200,7 @@ builder.background_gradient("#FF6B6B", "#FF8E53", Direction::Vertical);
 
 builder.add_text("New Arrival", TextElement {
     x: 80, y: 120,
-    // size is in points at 96dpi — same scale as PHP, templates port 1:1
+    // size is in points at 96dpi
     style: TextOptions { size: 48.0, color: "#333333".into(), ..Default::default() },
     ..Default::default()
 });
@@ -222,7 +222,7 @@ let bytes = builder.output_bytes("png", Some(90))?;  // raw bytes (write straigh
 ```
 
 > Rendering is cached: repeated `save()` / `output()` / `render()` on the same builder render once;
-> any `add_*` / background / size change invalidates the cache (matches PHP's `$rendered` flag).
+> any `add_*` / background / size change invalidates the cache.
 > Examples are an order of magnitude slower in debug builds (~16s for a 750×1334 poster) — use
 > `--release` when measuring performance.
 
@@ -332,7 +332,7 @@ All 8 frameworks now expose the same three routes:
 | Route | Purpose |
 |-------|---------|
 | `GET {path}/new?type=…` | Generate a captcha, returns `CaptchaResult` JSON (`image` is a data URI) |
-| `GET {path}/{key}` | Serve the image (`image/png`, `Cache-Control: no-store`) — matches the PHP version's `captcha.route` |
+| `GET {path}/{key}` | Serve the image (`Content-Type: image/png`, `Cache-Control: no-store`) |
 | `POST {path}/verify` | Verify `{"key":…, "answer":…}` → `{"pass": bool}`, rate-limit identity derived per request |
 
 Runnable examples: [`examples/`](examples/) (`axum_captcha` / `actix_captcha` / `guard_native`).
@@ -353,7 +353,7 @@ return `PosterError::Config` instead of silently taking effect. An all-zero `rat
 documented "rate limiting off" value and is not an error. Validate external JSON configs with
 `cfg.validate()?`.
 
-Key options (aligned with PHP's `config/poster.php`):
+Key options:
 
 | Option | Default | Description |
 |--------|---------|-------------|
