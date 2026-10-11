@@ -4,7 +4,7 @@
 > [架构设计](architecture-zh.svg) · [功能设计](feature-design-zh.svg) ·
 > [请求周期](request-flow-zh.svg) · [生命周期](lifecycle-zh.svg)（英文版把 `-zh` 换成 `-en`）。
 > 本文档正文使用 Mermaid 语法，GitHub / GitLab 原生渲染。
-> 本文档由 PHP 版 `docs/architecture.md` 改写而来，模块与驱动替换为 Rust 侧实现。
+> 全文模块与驱动均指 Rust 侧实现。
 
 ---
 
@@ -26,8 +26,8 @@ graph TB
     subgraph "Core Layer 核心层"
         DRIVERS["Image Driver 图像驱动<br/>ImageDriver（image crate，纯 Rust 单驱动）"]
         STORAGE["Storage 存储<br/>Storage trait<br/>MemoryStorage / FileStorage / RedisStorage"]
-        QRCODE["QR Code 二维码<br/>qrcode crate 封装（原 PHP 为自研生成器）"]
-        CONFIG["Config 配置<br/>PosterConfig<br/>全局 + 实例覆盖，键名对齐 PHP config/poster.php"]
+        QRCODE["QR Code 二维码<br/>qrcode crate 封装"]
+        CONFIG["Config 配置<br/>PosterConfig<br/>全局 + 实例覆盖，image / captcha / poster 三段"]
     end
 
     subgraph "Foundation 基础层"

@@ -35,12 +35,12 @@ poster-rust 是一个 Rust 图像工具包，只做两件事，并且做到够�
 
 ```
 poster-rust/
-├── src/                        # 51 个文件 / 约 8900 行
+├── src/                        # 51 个文件 / 约 9800 行
 │   ├── lib.rs                  # 导出 + 辅助函数（captcha_create / captcha_verify / poster_create）
 │   ├── captcha/                # 验证码模块：4 种类型 + 工厂 + 管理器 + 限流 + 轨迹校验
 │   │   ├── click.rs            #   点击验证（文字 / 11 种程序化图标目标）
 │   │   ├── rotate.rs           #   旋转验证（±5° 容差，圆周最短边折算）
-│   │   ├── slider.rs           #   滑块验证（square 矩形 / jigsaw 凹凸拼图，逐行对齐 PHP）
+│   │   ├── slider.rs           #   滑块验证（square 矩形 / jigsaw 凹凸拼图两种拼图形状）
 │   │   └── manager.rs          #   CaptchaManager：生成 / 校验 / 出图（Send + Sync）
 │   ├── poster/                 # 海报模块
 │   │   ├── builder.rs          #   链式 PosterBuilder（14 个 add_* + 注册表 add）
@@ -51,11 +51,11 @@ poster-rust/
 │   ├── integrations/           # 框架集成：axum / actix / rocket / poem / salvo / warp / bee_rust / ecat
 │   ├── guard.rs                # 原生 Guard 请求守卫（框架无关，接线期快速失败）
 │   ├── qrcode.rs               # 二维码（qrcode crate 封装，精确像素）
-│   ├── config.rs               # 配置（键名对齐 PHP config/poster.php，可 serde 序列化）
+│   ├── config.rs               # 配置（image / captcha / poster 三段，可 serde 序列化）
 │   ├── mascot.rs               # 项目宠物 Posty：NAME / TAGLINE / art() / greet()
 │   └── assets.rs               # 内置素材：宠物 / 6 张背景 / 默认字体（阿里巴巴普惠体）
 ├── assets/                     # pet.svg（README 顶部与文档图标）/ pet.png / backgrounds / fonts
-├── tests/                      # 集成测试 8 套 / 147 用例，目录结构与 src/ 镜像
+├── tests/                      # 集成测试 11 套 / 80 用例（另 src/ 内 99 个单元测试 + 12 个文档测试）
 ├── examples/                   # 9 个可运行示例（含 axum / actix 服务、Social Preview 生成器）
 ├── scripts/                    # gen-diagrams.py：生成 docs/ 下的中英 SVG 图
 └── docs/                       # 中英架构图（SVG）/ architecture.md / Social Preview / 赞赏码
@@ -125,7 +125,7 @@ poster-rust 提供 3 个辅助函数、原生 Guard 请求守卫与 8 个框架�
 cargo add poster-rust
 ```
 
-系统要求：Rust ≥ 1.85（edition 2024）。全部依赖为纯 Rust，无需 GD / ImageMagick 等系统库。
+系统要求：Rust ≥ 1.85（edition 2024）。全部依赖为纯 Rust，无需任何系统图像库。
 
 可选 feature：
 
@@ -295,7 +295,7 @@ let bytes = builder.output_bytes("png", Some(90))?; // 原始字节（直接写 
 ```
 
 > 渲染结果会缓存：同一 Builder 上多次 `save()` / `output()` / `render()` 只渲染一次，
-> 任何 `add_*` / 背景 / 宽高变更都会使缓存失效（与 PHP 版 `$rendered` 语义一致）。
+> 任何 `add_*` / 背景 / 宽高变更都会使缓存失效。
 > 示例程序在 debug 构建下会慢一个数量级（750×1334 海报约 16s），性能测试请用 `--release`。
 
 #### 文字 `add_text()`
@@ -308,7 +308,7 @@ builder.add_text("新品首发", TextElement {
     x: 80,                    // 横坐标
     y: 120,                   // 纵坐标（基线位置）
     style: TextOptions {
-        size: 48.0,                   // 字号（磅，96dpi；与 PHP 版同口径，模板可直接搬）
+        size: 48.0,                   // 字号（磅，96dpi）
         color: "#333333".into(),      // 颜色
         font: None,                   // 字体文件，None = 随包分发的阿里巴巴普惠体
         align: poster::drivers::TextAlign::Center,  // left | center | right
@@ -498,7 +498,7 @@ cfg.poster.placeholder = Some(Placeholder::Pet);
 use poster::PosterTemplate;
 use serde_json::json;
 
-// 定义模板（JSON 可序列化，键名与 PHP 版一致）
+// 定义模板（JSON 可序列化，键名与 to_array() 的导出格式一致）
 let template = PosterTemplate::from_config(json!({
     "width": 750,
     "height": 1334,
@@ -547,12 +547,21 @@ use poster::{Guard, captcha::CaptchaManager};
 let guard = Guard::from_manager(Arc::new(CaptchaManager::new()?))?;  // 接线期快速失败（存储探针）
 ```
 
-**限流身份**：校验端点的限流按请求身份分桶——`X-Forwarded-For` 第一段 → 对端 IP → `"unknown"`，
-由 `poster::guard::client_identity()` 派生，多用户服务不会互相挤占配额。
+**限流身份**：校验端点的限流按请求身份分桶，由 `poster::guard::client_identity()` 派生。
+**默认只信对端 IP**——`X-Forwarded-For` 是客户端可伪造的头，不显式开启就完全不采信：
+直连时每个客户端各占一个桶，而**经反向代理时所有真实客户端会共用代理 IP 这一个桶**，
+需要按真实客户端分桶时再开启下面的开关。
 
-> ⚠️ `X-Forwarded-For` 是客户端可伪造的头：直接暴露公网时请在可信代理层剥离/覆写它，
-> 或不用它（此时按对端 IP 分桶；axum 需挂 `into_make_service_with_connect_info::<SocketAddr>()`，
-> 否则退化为所有人共用一个 `"unknown"` 桶）。需要 session / uid 级身份时，
+```rust
+// 只在「可信反向代理 + 覆写（而非追加）X-Forwarded-For」的部署里开启
+let guard = guard.with_trust_forwarded_for(true);
+```
+
+> ⚠️ 开启后身份取 `X-Forwarded-For` 第一段 → 对端 IP → `"unknown"`。**只应在可信反向代理
+> 覆写该头的部署中开启**：代理若只是「追加」，客户端仍可自带一段伪造值顶在首位，限流桶会被
+> 攻击者逐个绕过；直接暴露公网时保持默认（不采信）。另外 axum 需挂
+> `into_make_service_with_connect_info::<SocketAddr>()` 才能拿到对端 IP，
+> 否则退化为所有人共用一个 `"unknown"` 桶。需要 session / uid 级身份时，
 > 直接调用 `Guard::verify_as(key, answer, identity)` 自行传入。
 
 ### axum
@@ -607,7 +616,7 @@ poster-rust = { version = "1.0", features = ["rocket"] }   # 或 poem / salvo / 
 | 端点 | 说明 |
 |------|------|
 | `GET {path}/new?type=…` | 生成验证码，返回 `CaptchaResult` JSON（`image` 为 data URI） |
-| `GET {path}/{key}` | 直接出图（`image/png`，`Cache-Control: no-store`，等价 PHP 版 `captcha.route`） |
+| `GET {path}/{key}` | 直接出图（`Content-Type: image/png`，`Cache-Control: no-store`） |
 | `POST {path}/verify` | 校验 `{"key":…, "answer":…}` → `{"pass": bool}`，限流身份按请求派生 |
 
 可直接运行的示例见 [`examples/`](examples/)（`axum_captcha` / `actix_captcha` / `guard_native`）。
@@ -620,10 +629,14 @@ use poster::config::{self, PosterConfig};
 let mut cfg = PosterConfig::default();
 cfg.captcha.ttl_secs = 600;
 cfg.captcha.rate_limit.max = 60;
-config::set_global(cfg)?;   // 进程级一次
+config::set_global(cfg)?;   // 进程级一次（先过 PosterConfig::validate()）
 ```
 
-主要配置项（键名对齐 PHP 版 `config/poster.php`）：
+`set_global` 会先做一次区间校验：`ttl_secs` / `max_attempts` 为 0、质量/压缩级别越界、
+默认画布为 0 或超出像素预算、`redis_prefix` 为空等会直接返回 `PosterError::Config`（不会静默生效）。
+`rate_limit` 全 0 是文档化的「关闭限流」，不算违规。外部 JSON 配置可先调 `cfg.validate()?` 自检。
+
+主要配置项：
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|

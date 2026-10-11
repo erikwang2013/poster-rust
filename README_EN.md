@@ -35,12 +35,12 @@ poster-rust is a Rust image toolkit that does two things, and does them well:
 
 ```
 poster-rust/
-├── src/                        # 51 files / ~8,900 lines
+├── src/                        # 51 files / ~9,800 lines
 │   ├── lib.rs                  # Exports + helpers (captcha_create / captcha_verify / poster_create)
 │   ├── captcha/                # 4 types + factory + manager + rate limiter + trajectory
 │   │   ├── click.rs            #   Click (text / 11 procedural icon targets)
 │   │   ├── rotate.rs           #   Rotate (±5° tolerance, circular shortest-arc)
-│   │   ├── slider.rs           #   Slider (square / jigsaw, ported line-by-line from PHP)
+│   │   ├── slider.rs           #   Slider (square / jigsaw puzzle shapes)
 │   │   └── manager.rs          #   CaptchaManager: generate / verify / serve (Send + Sync)
 │   ├── poster/                 # Builder + Template + 14 element renderers
 │   ├── drivers/                # Canvas (image crate) / TTF text (ab_glyph) / color
@@ -48,11 +48,11 @@ poster-rust/
 │   ├── integrations/           # axum / actix / rocket / poem / salvo / warp / bee_rust / ecat
 │   ├── guard.rs                # Native Guard (framework-agnostic, fails fast at wiring)
 │   ├── qrcode.rs               # QR codes (qrcode crate, exact pixel size)
-│   ├── config.rs               # Config (key names aligned with PHP's config/poster.php)
+│   ├── config.rs               # Config (image / captcha / poster sections, serde-serializable)
 │   ├── mascot.rs               # Mascot Posty: NAME / TAGLINE / art() / greet()
 │   └── assets.rs               # Bundled: mascot / 6 backgrounds / default font
 ├── assets/                     # pet.svg (README + docs icon) / pet.png / backgrounds / fonts
-├── tests/                      # 8 suites / 147 cases, mirroring src/
+├── tests/                      # 11 integration suites / 80 cases (+ 99 unit tests in src/, 12 doctests)
 ├── examples/                   # 9 runnable examples (incl. axum / actix servers, social preview)
 ├── scripts/                    # gen-diagrams.py: builds the zh/en SVG diagrams
 └── docs/                       # SVG diagrams (zh+en) / architecture.md / social preview / donate codes
@@ -122,7 +122,7 @@ Fluent Builder API with 14 element types:
 cargo add poster-rust
 ```
 
-Requires Rust ≥ 1.85 (edition 2024). All dependencies are pure Rust — no GD / ImageMagick or other system libraries.
+Requires Rust ≥ 1.85 (edition 2024). All dependencies are pure Rust — no system image libraries.
 
 Optional features:
 
@@ -200,7 +200,7 @@ builder.background_gradient("#FF6B6B", "#FF8E53", Direction::Vertical);
 
 builder.add_text("New Arrival", TextElement {
     x: 80, y: 120,
-    // size is in points at 96dpi — same scale as PHP, templates port 1:1
+    // size is in points at 96dpi
     style: TextOptions { size: 48.0, color: "#333333".into(), ..Default::default() },
     ..Default::default()
 });
@@ -222,7 +222,7 @@ let bytes = builder.output_bytes("png", Some(90))?;  // raw bytes (write straigh
 ```
 
 > Rendering is cached: repeated `save()` / `output()` / `render()` on the same builder render once;
-> any `add_*` / background / size change invalidates the cache (matches PHP's `$rendered` flag).
+> any `add_*` / background / size change invalidates the cache.
 > Examples are an order of magnitude slower in debug builds (~16s for a 750×1334 poster) — use
 > `--release` when measuring performance.
 
@@ -271,14 +271,24 @@ use poster::{Guard, captcha::CaptchaManager};
 let guard = Guard::from_manager(Arc::new(CaptchaManager::new()?))?;  // fails fast (storage probe)
 ```
 
-**Rate-limit identity**: verification endpoints bucket the rate limit per request identity —
-first hop of `X-Forwarded-For` → peer IP → `"unknown"`, derived by
-`poster::guard::client_identity()`, so multi-user services no longer share one global quota.
+**Rate-limit identity**: verification endpoints bucket the rate limit per request identity,
+derived by `poster::guard::client_identity()`. **By default only the peer IP is trusted** —
+`X-Forwarded-For` is client-spoofable, so it is ignored unless explicitly opted in: direct
+connections get one bucket each, while **behind a reverse proxy every real client shares the
+proxy's single bucket**. Opt in below when you need per-client buckets.
 
-> ⚠️ `X-Forwarded-For` is client-spoofable: behind a public edge, strip/overwrite it at a trusted
-> proxy or ignore it (identity then falls back to the peer IP; with axum, mount
-> `into_make_service_with_connect_info::<SocketAddr>()` or everyone shares the `"unknown"` bucket).
-> For session / uid identity, call `Guard::verify_as(key, answer, identity)` directly.
+```rust
+// Opt in only behind a trusted reverse proxy that *overwrites* (not appends) X-Forwarded-For
+let guard = guard.with_trust_forwarded_for(true);
+```
+
+> ⚠️ Once enabled, identity is the first hop of `X-Forwarded-For` → peer IP → `"unknown"`.
+> **Enable it only where a trusted reverse proxy overwrites that header**: if the proxy merely
+> *appends*, a client can still smuggle a forged first hop and rotate through rate-limit buckets.
+> Keep the default when the service is exposed directly. With axum, mount
+> `into_make_service_with_connect_info::<SocketAddr>()` so the peer IP is available, or everyone
+> shares the `"unknown"` bucket. For session / uid identity, call
+> `Guard::verify_as(key, answer, identity)` directly.
 
 ### axum
 
@@ -322,7 +332,7 @@ All 8 frameworks now expose the same three routes:
 | Route | Purpose |
 |-------|---------|
 | `GET {path}/new?type=…` | Generate a captcha, returns `CaptchaResult` JSON (`image` is a data URI) |
-| `GET {path}/{key}` | Serve the image (`image/png`, `Cache-Control: no-store`) — matches the PHP version's `captcha.route` |
+| `GET {path}/{key}` | Serve the image (`Content-Type: image/png`, `Cache-Control: no-store`) |
 | `POST {path}/verify` | Verify `{"key":…, "answer":…}` → `{"pass": bool}`, rate-limit identity derived per request |
 
 Runnable examples: [`examples/`](examples/) (`axum_captcha` / `actix_captcha` / `guard_native`).
@@ -334,10 +344,16 @@ use poster::config::{self, PosterConfig};
 
 let mut cfg = PosterConfig::default();
 cfg.captcha.ttl_secs = 600;
-config::set_global(cfg)?;
+config::set_global(cfg)?;   // once per process (runs PosterConfig::validate() first)
 ```
 
-Key options (aligned with PHP's `config/poster.php`):
+`set_global` validates ranges first: a zero `ttl_secs` / `max_attempts`, out-of-range quality
+or compression levels, a zero or over-budget default canvas, an empty `redis_prefix` and the like
+return `PosterError::Config` instead of silently taking effect. An all-zero `rate_limit` is the
+documented "rate limiting off" value and is not an error. Validate external JSON configs with
+`cfg.validate()?`.
+
+Key options:
 
 | Option | Default | Description |
 |--------|---------|-------------|

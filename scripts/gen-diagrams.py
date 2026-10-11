@@ -148,10 +148,10 @@ def architecture(lang):
          [("ImageDriver", ("image crate 单驱动：画布 / TTF 文字 / 图元" if zh else "Single `image`-crate driver: canvas / TTF text / primitives")),
           ("Storage", ("Memory / File / Redis（feature）" if zh else "Memory / File / Redis (feature)")),
           ("qrcode 封装" if zh else "qrcode wrapper", ("模块矩阵 → 精确像素" if zh else "module matrix → exact pixels")),
-          ("PosterConfig", ("键名对齐 PHP config/poster.php" if zh else "key names aligned with PHP"))]),
+          ("PosterConfig", ("image / captcha / poster 三段" if zh else "image / captcha / poster sections"))]),
         (576, 118, "#FFF8E1", "#E8B93C", "基础层" if zh else "Foundation",
          [("Rust ≥ 1.85（edition 2024）" if zh else "Rust ≥ 1.85 (edition 2024)",
-           "全依赖纯 Rust，无 GD / ImageMagick 等系统库" if zh else "All deps pure Rust — no GD / ImageMagick"),
+           "全依赖纯 Rust，无需系统图像库" if zh else "All deps pure Rust — no system image libs"),
           ("随包素材" if zh else "Bundled assets",
            "宠物 Posty · 6 张验证码背景 · 阿里巴巴普惠体" if zh else "Posty · 6 captcha backgrounds · Alibaba PuHuiTi font")]),
     ]
