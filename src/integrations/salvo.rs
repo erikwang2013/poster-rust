@@ -32,7 +32,8 @@ impl CaptchaImageHandler {
         _ctrl: &mut FlowCtrl,
     ) {
         let key: String = req.param("key").unwrap_or_default();
-        match self.guard.image(&key) {
+        let guard = self.guard.clone();
+        match super::run_blocking(move || guard.image(&key)).await {
             Ok(Some(img)) => {
                 res.headers_mut().insert(
                     "content-type",
@@ -69,7 +70,8 @@ impl CaptchaNewHandler {
         _ctrl: &mut FlowCtrl,
     ) {
         let kind: Option<String> = req.query("type");
-        match self.guard.create_json(kind.as_deref()) {
+        let guard = self.guard.clone();
+        match super::run_blocking(move || guard.create_json(kind.as_deref())).await {
             Ok(value) => {
                 res.render(salvo::prelude::Json(value));
             }
@@ -89,7 +91,9 @@ pub struct VerifyRequest {
 
 /// `POST {path}/verify` → `{"pass": true|false}`。
 ///
-/// 限流身份按请求派生（[`client_identity`]：`X-Forwarded-For` 第一段 → 对端 IP → `"unknown"`）。
+/// 限流身份按请求派生（[`client_identity`]：对端 IP → `"unknown"`）。
+/// `X-Forwarded-For` 默认**不**采信（可伪造），仅在 [`Guard::with_trust_forwarded_for`] 显式
+/// 开启后才作为身份参与分桶。
 /// 请求体 JSON 解析失败时交给 salvo 自己的 [`Writer`]（400；超出大小上限 413）。
 pub struct CaptchaVerifyHandler {
     guard: Guard,
@@ -111,11 +115,14 @@ impl CaptchaVerifyHandler {
                 return;
             }
         };
-        let identity = client_identity(
-            req.header::<String>("x-forwarded-for").as_deref(),
-            req.remote_addr().ip(),
-        );
-        match self.guard.verify_as(&body.key, body.answer, &identity) {
+        let xff = if self.guard.trust_forwarded_for() {
+            req.header::<String>("x-forwarded-for")
+        } else {
+            None
+        };
+        let identity = client_identity(xff.as_deref(), req.remote_addr().ip());
+        let guard = self.guard.clone();
+        match super::run_blocking(move || guard.verify_as(&body.key, body.answer, &identity)).await {
             Ok(pass) => {
                 res.render(salvo::prelude::Json(serde_json::json!({ "pass": pass })));
             }

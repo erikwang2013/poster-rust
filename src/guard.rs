@@ -24,9 +24,15 @@ const MAX_IDENTITY_LEN: usize = 64;
 /// 2. 对端 IP（`peer`）；
 /// 3. 都没有则 `"unknown"`（宁可所有人共用一个桶，也不放行无限量猜测）。
 ///
-/// **代理场景注意**：`X-Forwarded-For` 是客户端可伪造的请求头。直接暴露公网时
-/// 应传 `None`（或先在可信代理层剥离/覆写该头），否则攻击者每次换一个伪造 IP
-/// 即可绕开限流；只有置于可信反向代理之后才应采信它。
+/// **代理场景注意**：`X-Forwarded-For` 是客户端可伪造的请求头，本函数不做可信性判断，
+/// 采信与否由调用方决定——适配器只在 [`Guard::with_trust_forwarded_for`] 显式开启时才把
+/// 该头传进来（默认传 `None`，只信对端 IP）。
+///
+/// 开启信任的前提是**位于可信代理之后，且该代理覆写（而非追加）`X-Forwarded-For`**：
+/// 覆写式代理保证头值由代理自己生成（如 `proxy_set_header X-Forwarded-For $remote_addr`）；
+/// 追加式代理（nginx `$proxy_add_x_forwarded_for`、多数 CDN 的默认行为）会把客户端自带的
+/// 值拼在最前，第一段仍然是攻击者可控的——此时开启信任等于把限流分桶交给客户端，
+/// 攻击者每个请求换一个伪造 IP 即可绕开限流。
 pub fn client_identity(forwarded_for: Option<&str>, peer: Option<IpAddr>) -> String {
     let forwarded = forwarded_for
         .and_then(|value| value.split(',').next())
@@ -56,24 +62,47 @@ pub struct CaptchaImage {
 #[derive(Clone)]
 pub struct Guard {
     manager: Arc<CaptchaManager>,
+    trust_forwarded_for: bool,
 }
 
 impl std::fmt::Debug for Guard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Guard").finish_non_exhaustive()
+        f.debug_struct("Guard")
+            .field("trust_forwarded_for", &self.trust_forwarded_for)
+            .finish_non_exhaustive()
     }
 }
 
 impl Guard {
     /// 直接包装管理器（不做探针）。
     pub fn new(manager: Arc<CaptchaManager>) -> Self {
-        Self { manager }
+        Self {
+            manager,
+            trust_forwarded_for: false,
+        }
     }
 
     /// 接线期构造：对存储做一次写探针，后端不可用立即失败（而不是等第一个请求）。
     pub fn from_manager(manager: Arc<CaptchaManager>) -> Result<Self> {
         manager.probe()?;
-        Ok(Self { manager })
+        Ok(Self {
+            manager,
+            trust_forwarded_for: false,
+        })
+    }
+
+    /// 是否采信 `X-Forwarded-For` 作为限流身份（默认 `false`，只信对端 IP）。
+    ///
+    /// 仅当自己位于可信代理之后、且该代理**覆写**（而非追加）`X-Forwarded-For` 时才开启，
+    /// 详见 [`client_identity`] 的代理场景说明。
+    pub fn with_trust_forwarded_for(mut self, trust: bool) -> Self {
+        self.trust_forwarded_for = trust;
+        self
+    }
+
+    /// 供适配器 handler 读取（外部无需访问，用 [`Guard::with_trust_forwarded_for`] 设置即可）。
+    pub(crate) fn trust_forwarded_for(&self) -> bool {
+        self.trust_forwarded_for
     }
 
     /// 底层管理器。

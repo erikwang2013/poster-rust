@@ -21,7 +21,10 @@ use poster::{Guard, PosterConfig};
 /// （HTTP 不回传答案，只有正确/错误两种可观察结果）。
 ///
 /// `Router` 不是 `Clone`，用 `Arc<Router>` 复用（salvo 为它实现了 `SendTarget`）。
-fn rate_limited_router() -> (Arc<Router>, Guard, Arc<MemoryStorage>) {
+///
+/// `trust_forwarded_for` 决定是否采信 `X-Forwarded-For` 作为限流身份：
+/// 默认 `false`，测试里用 [`rate_limited_router_trusting_xff`] 显式开启。
+fn rate_limited_router(trust_forwarded_for: bool) -> (Arc<Router>, Guard, Arc<MemoryStorage>) {
     let storage = Arc::new(MemoryStorage::new());
     let mut config = PosterConfig::default();
     config.captcha.rate_limit.max = 1;
@@ -30,8 +33,15 @@ fn rate_limited_router() -> (Arc<Router>, Guard, Arc<MemoryStorage>) {
         Arc::new(config),
         storage.clone(),
     ));
-    let guard = Guard::from_manager(manager).unwrap();
+    let guard = Guard::from_manager(manager)
+        .unwrap()
+        .with_trust_forwarded_for(trust_forwarded_for);
     (Arc::new(routes(guard.clone())), guard, storage)
+}
+
+/// 开启 XFF 信任的路由表（模拟「可信代理已覆写 XFF」的部署）。
+fn rate_limited_router_trusting_xff() -> (Arc<Router>, Guard, Arc<MemoryStorage>) {
+    rate_limited_router(true)
 }
 
 /// 生成一张滑块验证码，并从存储里读出目标 x 作为正确答案。
@@ -60,11 +70,11 @@ async fn post_verify(router: &Arc<Router>, key: &str, x: f32, xff: Option<&str>,
     assert_eq!(body, json!({ "pass": expect_pass }));
 }
 
-/// 限流身份按请求派生（XFF 第一段），而不是所有请求共用常量 `"default"` 桶：
+/// 限流身份按请求派生（显式开启信任后的 XFF 第一段），而不是所有请求共用常量 `"default"` 桶：
 /// 同身份第二个正确校验因超限被拒，换身份后仍放行。
 #[tokio::test]
 async fn verify_rate_limit_buckets_by_request_identity() {
-    let (router, guard, storage) = rate_limited_router();
+    let (router, guard, storage) = rate_limited_router_trusting_xff();
 
     // 身份 A 第一次：答案正确且配额充足 → 放行（顺带用满本窗口的 1 次配额）
     let (key, x) = slider_key_with_answer(&guard, &storage);
@@ -83,7 +93,7 @@ async fn verify_rate_limit_buckets_by_request_identity() {
 /// （测试客户端的 `remote_addr` 是 `SocketAddr::Unknown`，取不到对端 IP → `"unknown"`）。
 #[tokio::test]
 async fn missing_xff_falls_back_to_a_shared_bucket() {
-    let (router, guard, storage) = rate_limited_router();
+    let (router, guard, storage) = rate_limited_router(false);
 
     let (key, x) = slider_key_with_answer(&guard, &storage);
     post_verify(&router, &key, x, None, true).await;
@@ -95,15 +105,29 @@ async fn missing_xff_falls_back_to_a_shared_bucket() {
 /// 答案错误 → `pass=false`。
 #[tokio::test]
 async fn wrong_answer_is_rejected() {
-    let (router, guard, storage) = rate_limited_router();
+    let (router, guard, storage) = rate_limited_router_trusting_xff();
     let (key, x) = slider_key_with_answer(&guard, &storage);
     post_verify(&router, &key, x + 60.0, Some("203.0.113.7"), false).await;
+}
+
+/// 默认（未开启信任）不采信 `X-Forwarded-For`：伪造头换不来新桶。
+/// 测试客户端的 `remote_addr` 取不到对端 IP → 身份恒为 `"unknown"`，
+/// 两个不同伪造 IP 仍打同一个桶，第二个超限被拒。
+#[tokio::test]
+async fn forged_xff_does_not_change_bucket_by_default() {
+    let (router, guard, storage) = rate_limited_router(false);
+
+    let (key, x) = slider_key_with_answer(&guard, &storage);
+    post_verify(&router, &key, x, Some("203.0.113.7"), true).await;
+
+    let (key, x) = slider_key_with_answer(&guard, &storage);
+    post_verify(&router, &key, x, Some("198.51.100.9"), false).await;
 }
 
 /// 非法 JSON → 400（`parse_json` 失败交给 salvo 的 `Writer` 渲染，不是 500）。
 #[tokio::test]
 async fn malformed_json_is_rejected_with_400() {
-    let (router, _guard, _storage) = rate_limited_router();
+    let (router, _guard, _storage) = rate_limited_router(false);
     let resp = TestClient::post("http://127.0.0.1/captcha/verify")
         .raw_json("{ not json")
         .send(router.clone())
@@ -115,7 +139,7 @@ async fn malformed_json_is_rejected_with_400() {
 /// 把 `{prefix}/new` 嵌在 `{prefix}/{key}` 之下会拼成 `/{prefix}/{key}/{prefix}/new`（永不匹配）。
 #[tokio::test]
 async fn new_endpoint_is_routable_at_flat_path() {
-    let (router, _guard, _storage) = rate_limited_router();
+    let (router, _guard, _storage) = rate_limited_router(false);
     let mut resp = TestClient::get("http://127.0.0.1/captcha/new")
         .send(router.clone())
         .await;

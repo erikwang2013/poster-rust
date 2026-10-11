@@ -37,6 +37,13 @@ pub trait GuardState {
     fn guard(&self) -> &Guard;
 }
 
+/// `Guard` 自身即可当状态用（bee-rust / e-cat 的便捷 `router(guard)` 依赖它）。
+impl GuardState for Guard {
+    fn guard(&self) -> &Guard {
+        self
+    }
+}
+
 /// `Guard` 的 axum 提取器：请求期克隆（两次原子计数），不可失败。
 impl<S> FromRequestParts<S> for Guard
 where
@@ -54,7 +61,8 @@ pub async fn captcha_image<S>(State(state): State<S>, Path(key): Path<String>) -
 where
     S: GuardState + Clone + Send + Sync + 'static,
 {
-    match state.guard().image(&key) {
+    let guard = state.guard().clone();
+    match super::run_blocking(move || guard.image(&key)).await {
         Ok(Some(img)) => (
             [
                 (header::CONTENT_TYPE, img.content_type),
@@ -77,8 +85,9 @@ pub struct VerifyRequest {
 
 /// `POST {path}/verify` → `{"pass": true|false}`。
 ///
-/// 限流身份按请求派生（[`client_identity`]：`X-Forwarded-For` 第一段 → 对端 IP → `"unknown"`），
-/// 不再全站共用一个桶。对端 IP 依赖 `ConnectInfo`：路由需挂
+/// 限流身份按请求派生（[`client_identity`]：对端 IP → `"unknown"`），不再全站共用一个桶。
+/// `X-Forwarded-For` 默认**不**采信（可伪造），仅在 [`Guard::with_trust_forwarded_for`] 显式
+/// 开启后才作为身份参与分桶。对端 IP 依赖 `ConnectInfo`：路由需挂
 /// `into_make_service_with_connect_info::<SocketAddr>()`，否则退化为 `"unknown"`
 /// （所有请求一个桶，与旧行为等价，但不会放行无限量猜测）。
 ///
@@ -94,11 +103,14 @@ pub async fn captcha_verify<S>(
 where
     S: GuardState + Clone + Send + Sync + 'static,
 {
-    let identity = client_identity(
-        headers.get("x-forwarded-for").and_then(|value| value.to_str().ok()),
-        connect_info.map(|Extension(info)| info.0.ip()),
-    );
-    match state.guard().verify_as(&req.key, req.answer, &identity) {
+    let guard = state.guard().clone();
+    let xff = if guard.trust_forwarded_for() {
+        headers.get("x-forwarded-for").and_then(|value| value.to_str().ok())
+    } else {
+        None
+    };
+    let identity = client_identity(xff, connect_info.map(|Extension(info)| info.0.ip()));
+    match super::run_blocking(move || guard.verify_as(&req.key, req.answer, &identity)).await {
         Ok(pass) => Json(serde_json::json!({ "pass": pass })).into_response(),
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
@@ -112,8 +124,9 @@ pub async fn captcha_new<S>(
 where
     S: GuardState + Clone + Send + Sync + 'static,
 {
-    let kind = query.get("type").map(String::as_str);
-    match state.guard().create_json(kind) {
+    let guard = state.guard().clone();
+    let kind = query.get("type").cloned();
+    match super::run_blocking(move || guard.create_json(kind.as_deref())).await {
         Ok(value) => Json(value).into_response(),
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
