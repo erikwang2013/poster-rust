@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 /// 文本对齐。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum TextAlign {
     #[default]
     Left,
@@ -22,7 +23,8 @@ pub enum TextAlign {
     Right,
 }
 
-/// 文字绘制选项，键名对齐 PHP `text()` 的 options。
+/// 文字绘制选项，键名对齐 PHP `text()` 的 options
+/// （多词键同时接受 camelCase 与历史 snake_case，如 `maxWidth` / `max_width`）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TextOptions {
@@ -34,11 +36,13 @@ pub struct TextOptions {
     pub color: String,
     /// 旋转角度（度，逆时针为正，围绕 x/y 锚点）。
     pub angle: f32,
-    /// 自动换行宽度；0 = 不换行（仅按 `\n` 分段）。
+    /// 自动换行宽度；0 = 不换行（仅按 `\n` 分段）。别名 `max_width`。
+    #[serde(alias = "max_width")]
     pub max_width: f32,
     /// 对齐：x 是左/中/右锚点。
     pub align: TextAlign,
-    /// 行高；`None` = 字号 × 1.5。
+    /// 行高；`None` = 字号 × 1.5。别名 `line_height`。
+    #[serde(alias = "line_height")]
     pub line_height: Option<f32>,
 }
 
@@ -102,7 +106,11 @@ impl Default for LineOptions {
 #[serde(default, rename_all = "camelCase")]
 pub struct ShadowOptions {
     pub color: String,
+    /// 别名 `offset_x`。
+    #[serde(alias = "offset_x")]
     pub offset_x: i32,
+    /// 别名 `offset_y`。
+    #[serde(alias = "offset_y")]
     pub offset_y: i32,
     pub blur: u32,
     /// 透明度 0-1（0-100 也接受）；`None` = 由颜色自带 alpha 决定。

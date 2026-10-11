@@ -16,14 +16,15 @@ use image::codecs::png::{CompressionType, FilterType, PngEncoder};
 use image::codecs::webp::WebPEncoder;
 use image::{ExtendedColorType, ImageEncoder, Rgba, RgbaImage};
 
-
 use crate::config;
 use crate::drivers::text::{self, Font};
 use crate::drivers::{LineOptions, OverlayOptions, ShapeOptions, TextAlign, TextOptions, color};
 use crate::error::{PosterError, Result};
 
 /// 像素预算（与 PHP 无 memory_limit 时的历史阈值一致）。
-const MAX_PIXELS: u64 = 40_000_000;
+///
+/// `pub(crate)`：`text.rs` 的旋转临时画布与元素几何上限（`elements::MAX_DIM`）共用同一数值。
+pub(crate) const MAX_PIXELS: u64 = 40_000_000;
 
 /// 画布。
 pub struct ImageDriver {
@@ -122,7 +123,12 @@ impl ImageDriver {
     /// 缩放到精确尺寸。
     pub fn resize(&mut self, width: u32, height: u32) -> Result<()> {
         guard_size(width, height)?;
-        self.img = image::imageops::resize(&self.img, width, height, image::imageops::FilterType::Triangle);
+        self.img = image::imageops::resize(
+            &self.img,
+            width,
+            height,
+            image::imageops::FilterType::Triangle,
+        );
         Ok(())
     }
 
@@ -203,13 +209,27 @@ impl ImageDriver {
                 TextAlign::Center => x - line_w / 2.0,
                 TextAlign::Right => x - line_w,
             };
-            font.draw_line(img, line, lx, y + i as f32 * line_height, opts.size, rgba, opts.angle);
+            font.draw_line(
+                img,
+                line,
+                lx,
+                y + i as f32 * line_height,
+                opts.size,
+                rgba,
+                opts.angle,
+            )?;
         }
         Ok(())
     }
 
     /// 叠加图片（缩放 → 圆角 → 阴影 → 合成），选项同 PHP `image()`。
-    pub fn overlay(&mut self, ov: &ImageDriver, x: i32, y: i32, opts: &OverlayOptions) -> Result<()> {
+    pub fn overlay(
+        &mut self,
+        ov: &ImageDriver,
+        x: i32,
+        y: i32,
+        opts: &OverlayOptions,
+    ) -> Result<()> {
         let (dw, dh) = (
             opts.width.unwrap_or(ov.width()),
             opts.height.unwrap_or(ov.height()),
@@ -232,7 +252,14 @@ impl ImageDriver {
     }
 
     /// 矩形（`radius > 0` 且填充时为圆角矩形）。
-    pub fn rectangle(&mut self, x: i32, y: i32, width: u32, height: u32, opts: &ShapeOptions) -> Result<()> {
+    pub fn rectangle(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32,
+        opts: &ShapeOptions,
+    ) -> Result<()> {
         if width == 0 || height == 0 {
             return Ok(());
         }
@@ -249,12 +276,22 @@ impl ImageDriver {
                     rgba,
                 );
             } else {
-                fill_rect(&mut self.img, x as i64, y as i64, width as i64, height as i64, rgba);
+                fill_rect(
+                    &mut self.img,
+                    x as i64,
+                    y as i64,
+                    width as i64,
+                    height as i64,
+                    rgba,
+                );
             }
         } else {
             let r = |v: i64| v as f32;
             let (x0, y0) = (r(x as i64), r(y as i64));
-            let (x1, y1) = (r(x as i64 + width as i64 - 1), r(y as i64 + height as i64 - 1));
+            let (x1, y1) = (
+                r(x as i64 + width as i64 - 1),
+                r(y as i64 + height as i64 - 1),
+            );
             draw_thick_line(&mut self.img, (x0, y0), (x1, y0), 1.0, rgba);
             draw_thick_line(&mut self.img, (x1, y0), (x1, y1), 1.0, rgba);
             draw_thick_line(&mut self.img, (x1, y1), (x0, y1), 1.0, rgba);
@@ -264,9 +301,24 @@ impl ImageDriver {
     }
 
     /// 椭圆（`rx`/`ry` 为半轴）。
-    pub fn ellipse(&mut self, cx: i32, cy: i32, rx: f32, ry: f32, opts: &ShapeOptions) -> Result<()> {
+    pub fn ellipse(
+        &mut self,
+        cx: i32,
+        cy: i32,
+        rx: f32,
+        ry: f32,
+        opts: &ShapeOptions,
+    ) -> Result<()> {
         let rgba = color::parse_with_opacity(&opts.color, opts.opacity)?;
-        fill_ellipse(&mut self.img, cx as f32, cy as f32, rx, ry, rgba, opts.filled);
+        fill_ellipse(
+            &mut self.img,
+            cx as f32,
+            cy as f32,
+            rx,
+            ry,
+            rgba,
+            opts.filled,
+        );
         Ok(())
     }
 
@@ -287,7 +339,8 @@ impl ImageDriver {
         let mut points = vec![(cx as f32, cy as f32)];
         let steps = (((end_angle - start_angle).abs() / 3.0).ceil() as usize).max(1);
         for i in 0..=steps {
-            let a = (start_angle + (end_angle - start_angle) * i as f32 / steps as f32).to_radians();
+            let a =
+                (start_angle + (end_angle - start_angle) * i as f32 / steps as f32).to_radians();
             points.push((cx as f32 + rx * a.cos(), cy as f32 + ry * a.sin()));
         }
         fill_polygon(&mut self.img, &points, rgba);
@@ -353,7 +406,8 @@ impl ImageDriver {
         }
         let (w, h) = self.size();
         let (sw, sh) = ((w / 4).max(1), (h / 4).max(1));
-        let small = image::imageops::resize(&self.img, sw, sh, image::imageops::FilterType::Triangle);
+        let small =
+            image::imageops::resize(&self.img, sw, sh, image::imageops::FilterType::Triangle);
         let passes = (radius as f32 / 2.0).clamp(1.0, 8.0);
         let small = image::imageops::blur(&small, passes * 0.6);
         self.img = image::imageops::resize(&small, w, h, image::imageops::FilterType::Triangle);
@@ -374,7 +428,8 @@ impl ImageDriver {
         let block = block.max(1);
         let (w, h) = self.size();
         let (sw, sh) = ((w / block).max(1), (h / block).max(1));
-        let small = image::imageops::resize(&self.img, sw, sh, image::imageops::FilterType::Triangle);
+        let small =
+            image::imageops::resize(&self.img, sw, sh, image::imageops::FilterType::Triangle);
         self.img = image::imageops::resize(&small, w, h, image::imageops::FilterType::Nearest);
     }
 
@@ -463,7 +518,14 @@ impl ImageDriver {
     // ── 内部 ──────────────────────────────────────────────
 
     /// 阴影：1/4 降采样画实心块 → 模糊 → 放大上色合成（同 PHP `drawShadowGD` 策略）。
-    fn draw_shadow(&mut self, shadow: &crate::drivers::ShadowOptions, x: i32, y: i32, w: u32, h: u32) -> Result<()> {
+    fn draw_shadow(
+        &mut self,
+        shadow: &crate::drivers::ShadowOptions,
+        x: i32,
+        y: i32,
+        w: u32,
+        h: u32,
+    ) -> Result<()> {
         let rgba = color::parse_with_opacity(&shadow.color, shadow.opacity)?;
         let blur = shadow.blur as i32;
         let pad = blur * 2;
@@ -596,7 +658,15 @@ fn fill_rect(img: &mut RgbaImage, x: i64, y: i64, w: i64, h: i64, color: Rgba<u8
 }
 
 /// 圆角矩形填充：两个交叉矩形 + 四角圆（SDF 抗锯齿）。
-fn fill_rounded_rect(img: &mut RgbaImage, x: f32, y: f32, w: f32, h: f32, radius: f32, color: Rgba<u8>) {
+fn fill_rounded_rect(
+    img: &mut RgbaImage,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    radius: f32,
+    color: Rgba<u8>,
+) {
     if color.0[3] == 0 {
         return;
     }
@@ -651,7 +721,15 @@ fn fill_rounded_rect(img: &mut RgbaImage, x: f32, y: f32, w: f32, h: f32, radius
 }
 
 /// 填充椭圆（`filled = false` 时画轮廓）。
-fn fill_ellipse(img: &mut RgbaImage, cx: f32, cy: f32, rx: f32, ry: f32, color: Rgba<u8>, filled: bool) {
+fn fill_ellipse(
+    img: &mut RgbaImage,
+    cx: f32,
+    cy: f32,
+    rx: f32,
+    ry: f32,
+    color: Rgba<u8>,
+    filled: bool,
+) {
     if rx <= 0.0 || ry <= 0.0 || color.0[3] == 0 {
         return;
     }
@@ -690,7 +768,11 @@ fn fill_ellipse(img: &mut RgbaImage, cx: f32, cy: f32, rx: f32, ry: f32, color: 
             let hw = if u > 0.0 { u.sqrt() * rx } else { 0.0 };
             let a = ((cx - hw + 0.5).ceil() as i64).max(x0);
             let b = ((cx + hw - 1.5).floor() as i64 + 1).min(x1);
-            if hw > 0.0 && b > a { Some((a, b)) } else { None }
+            if hw > 0.0 && b > a {
+                Some((a, b))
+            } else {
+                None
+            }
         };
         let (a, b) = inner.unwrap_or((x0, x0));
         for px in x0..a {
@@ -718,8 +800,17 @@ fn fill_polygon(img: &mut RgbaImage, points: &[(f32, f32)], color: Rgba<u8>) {
         return;
     }
     let width = img.width() as i64;
-    let y_min = points.iter().map(|p| p.1).fold(f32::INFINITY, f32::min).floor().max(0.0);
-    let y_max = points.iter().map(|p| p.1).fold(f32::NEG_INFINITY, f32::max).ceil();
+    let y_min = points
+        .iter()
+        .map(|p| p.1)
+        .fold(f32::INFINITY, f32::min)
+        .floor()
+        .max(0.0);
+    let y_max = points
+        .iter()
+        .map(|p| p.1)
+        .fold(f32::NEG_INFINITY, f32::max)
+        .ceil();
     let y_max = y_max.min(img.height() as f32) as i64;
     let stride = img.width() as usize * 4;
     let buf: &mut [u8] = img;
@@ -914,7 +1005,12 @@ fn sample_bilinear(src: &RgbaImage, x: f32, y: f32) -> Rgba<u8> {
             [p[0] as f32, p[1] as f32, p[2] as f32, p[3] as f32]
         }
     };
-    let (p00, p10, p01, p11) = (get(x0, y0), get(x0 + 1, y0), get(x0, y0 + 1), get(x0 + 1, y0 + 1));
+    let (p00, p10, p01, p11) = (
+        get(x0, y0),
+        get(x0 + 1, y0),
+        get(x0, y0 + 1),
+        get(x0 + 1, y0 + 1),
+    );
     let mut out = [0u8; 4];
     for i in 0..4 {
         let top = p00[i] + (p10[i] - p00[i]) * fx;
@@ -1024,10 +1120,17 @@ mod tests {
     fn rotate_90_clockwise_moves_top_to_right() {
         let mut c = ImageDriver::filled(10, 20, "#000000").unwrap();
         // 顶边中点画红点
-        c.rectangle(4, 0, 2, 2, &ShapeOptions {
-            color: "#FF0000".into(),
-            ..Default::default()
-        }).unwrap();
+        c.rectangle(
+            4,
+            0,
+            2,
+            2,
+            &ShapeOptions {
+                color: "#FF0000".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         c.rotate(90.0, "transparent").unwrap();
         assert_eq!(c.size(), (20, 10), "画布应扩展");
         // 顺时针 90°：顶部 → 右侧
@@ -1061,7 +1164,9 @@ mod tests {
         let c = ImageDriver::filled(4, 4, "#123456").unwrap();
         let uri = c.output("jpg", Some(90)).unwrap();
         let b64 = uri.strip_prefix("data:image/jpeg;base64,").unwrap();
-        let bytes = base64::engine::general_purpose::STANDARD.decode(b64).unwrap();
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(b64)
+            .unwrap();
         assert_eq!(&bytes[..2], &[0xFF, 0xD8], "应是 JPEG 魔数");
     }
 }

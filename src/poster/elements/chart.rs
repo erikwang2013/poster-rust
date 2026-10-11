@@ -9,7 +9,7 @@ use crate::config;
 use crate::drivers::{ImageDriver, LineOptions, ShapeOptions, TextAlign, TextOptions};
 use crate::error::{PosterError, Result};
 
-use super::{ElementRender, RenderCtx, cell_text, positive};
+use super::{ElementRender, RenderCtx, bounded, cell_text, positive};
 
 /// 支持的图表类型（严格小写，写错不静默画成柱状图）。
 pub const TYPES: [&str; 3] = ["bar", "pie", "line"];
@@ -69,8 +69,12 @@ impl ElementRender for ChartElement {
                 TYPES.join(", ")
             )));
         }
-        let width = positive(self.width, "width")?;
-        let height = positive(self.height, "height")?;
+        // 几何守卫：宽高与内边距是模板可控的 u32，4e9 级数值会让
+        // `padding as i32` / `padding * 2` / `width as i32` 溢出回绕；
+        // 在入口校验（空数据时 draw_* 会提前返回，守卫必须在分发之前）。
+        let width = bounded(positive(self.width, "width")?, "width")?;
+        let height = bounded(positive(self.height, "height")?, "height")?;
+        bounded(self.padding, "padding")?;
         let font = config::resolve_font(ctx.config, None);
 
         match chart_type {
@@ -114,7 +118,13 @@ impl ChartElement {
             color: "#CCCCCC".into(),
             ..Default::default()
         };
-        canvas.line(self.x + padding, self.y + padding, self.x + padding, axis_y, &axis)?;
+        canvas.line(
+            self.x + padding,
+            self.y + padding,
+            self.x + padding,
+            axis_y,
+            &axis,
+        )?;
         canvas.line(
             self.x + padding,
             axis_y,
@@ -185,7 +195,13 @@ impl ChartElement {
             color: "#CCCCCC".into(),
             ..Default::default()
         };
-        canvas.line(self.x + padding, self.y + padding, self.x + padding, axis_y, &axis)?;
+        canvas.line(
+            self.x + padding,
+            self.y + padding,
+            self.x + padding,
+            axis_y,
+            &axis,
+        )?;
         canvas.line(
             self.x + padding,
             axis_y,
@@ -306,7 +322,12 @@ impl ChartElement {
                 let mid = (start + slice / 2.0).to_radians();
                 let lx = cx + (mid.cos() * (radius + 25.0)) as i32;
                 let ly = cy + (mid.sin() * (radius + 25.0)) as i32;
-                canvas.text(&label, lx as f32, ly as f32, &label_opts(10.0, "#333333", &font))?;
+                canvas.text(
+                    &label,
+                    lx as f32,
+                    ly as f32,
+                    &label_opts(10.0, "#333333", &font),
+                )?;
             }
 
             start += slice;

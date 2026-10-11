@@ -33,10 +33,12 @@ pub struct WatermarkElement {
     /// 旋转角度（度，逆时针为正），默认 -30。
     #[serde(default = "default_angle")]
     pub angle: f32,
-    /// 自动换行宽度；0 = 不换行。
+    /// 自动换行宽度；0 = 不换行。别名 `max_width`。
+    #[serde(alias = "max_width")]
     pub max_width: f32,
     pub align: TextAlign,
-    /// 行高；`None` = 字号 × 1.5。
+    /// 行高；`None` = 字号 × 1.5。别名 `line_height`。
+    #[serde(alias = "line_height")]
     pub line_height: Option<f32>,
     /// 横纵间距的公共回落值。
     pub spacing: Option<u32>,

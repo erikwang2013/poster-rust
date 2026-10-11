@@ -67,6 +67,7 @@ pub const TYPES: [&str; 15] = [
 /// 海报元素：14 种类型，JSON 以 `type` 为内部标签（kebab-case）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "kebab-case")]
+#[non_exhaustive]
 pub enum Element {
     Text(text::TextElement),
     Image(image::ImageElement),
@@ -141,9 +142,8 @@ impl Element {
             )));
         }
         obj.insert("type".into(), Value::String(kind.into()));
-        serde_json::from_value(Value::Object(obj)).map_err(|e| {
-            PosterError::Template(format!("元素 \"{kind}\" 选项解析失败: {e}"))
-        })
+        serde_json::from_value(Value::Object(obj))
+            .map_err(|e| PosterError::Template(format!("元素 \"{kind}\" 选项解析失败: {e}")))
     }
 
     /// 模板变量替换：递归替换元素所有字符串字段里的 `{{var}}`；变量缺失报错。
@@ -189,6 +189,21 @@ pub fn positive(value: u32, key: &str) -> Result<u32> {
     if value == 0 {
         return Err(PosterError::Template(format!(
             "选项 \"{key}\" 必须大于 0，得到 {value}"
+        )));
+    }
+    Ok(value)
+}
+
+/// 单个几何量（宽度 / 间距 / 边长 / 累加和）的上限，与画布像素预算同源。
+pub const MAX_DIM: u32 = crate::drivers::canvas::MAX_PIXELS as u32;
+
+/// 几何量上限校验：模板 JSON 里的宽度/间距可以是 4e9 级 u32，
+/// 直接进 i32 运算会 debug panic（溢出）或 release 静默回绕；超限 fail-closed。
+/// 与 [`positive`] 配合使用（保证 > 0 的调用点应连用）。
+pub fn bounded(value: u32, key: &str) -> Result<u32> {
+    if value > MAX_DIM {
+        return Err(PosterError::Template(format!(
+            "选项 \"{key}\" 超出上限 {MAX_DIM}，得到 {value}"
         )));
     }
     Ok(value)
@@ -333,23 +348,39 @@ mod tests {
 
     #[test]
     fn placeholder_replacement_handles_spacing_and_unicode() {
-        let vars = BTreeMap::from([("名字".to_string(), "海报".to_string()), ("n".to_string(), "3".to_string())]);
-        assert_eq!(replace_placeholders("你好 {{ 名字 }} ×{{n}}", &vars).unwrap(), "你好 海报 ×3");
-        assert_eq!(replace_placeholders("{{  }}", &vars).unwrap(), "{{  }}", "非法占位符原样保留");
+        let vars = BTreeMap::from([
+            ("名字".to_string(), "海报".to_string()),
+            ("n".to_string(), "3".to_string()),
+        ]);
+        assert_eq!(
+            replace_placeholders("你好 {{ 名字 }} ×{{n}}", &vars).unwrap(),
+            "你好 海报 ×3"
+        );
+        assert_eq!(
+            replace_placeholders("{{  }}", &vars).unwrap(),
+            "{{  }}",
+            "非法占位符原样保留"
+        );
     }
 
     #[test]
     fn missing_variable_is_an_error() {
         let vars = BTreeMap::from([("a".to_string(), "1".to_string())]);
         let err = replace_placeholders("{{b}}", &vars).unwrap_err();
-        assert!(matches!(err, PosterError::Template(_)), "缺变量应报模板错误");
+        assert!(
+            matches!(err, PosterError::Template(_)),
+            "缺变量应报模板错误"
+        );
     }
 
     #[test]
     fn unknown_type_lists_known_types() {
         let err = Element::from_parts("nope", Value::Object(Default::default())).unwrap_err();
         let msg = err.to_string();
-        assert!(msg.contains("nope") && msg.contains("watermark"), "报错要列出已知类型: {msg}");
+        assert!(
+            msg.contains("nope") && msg.contains("watermark"),
+            "报错要列出已知类型: {msg}"
+        );
     }
 
     #[test]

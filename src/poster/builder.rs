@@ -24,6 +24,7 @@ use super::template::PosterTemplate;
 /// 渐变方向。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum Direction {
     /// 自上而下。
     Vertical,
@@ -146,7 +147,11 @@ impl PosterBuilder {
     }
 
     /// 二维码。
-    pub fn add_qrcode(&mut self, content: impl Into<String>, mut options: QrcodeElement) -> &mut Self {
+    pub fn add_qrcode(
+        &mut self,
+        content: impl Into<String>,
+        mut options: QrcodeElement,
+    ) -> &mut Self {
         self.invalidate();
         options.content = content.into();
         self.elements.push(Element::Qrcode(options));
@@ -196,7 +201,12 @@ impl PosterBuilder {
     }
 
     /// 图表：`bar` / `pie` / `line`。
-    pub fn add_chart(&mut self, chart_type: &str, data: Vec<Value>, mut options: ChartElement) -> &mut Self {
+    pub fn add_chart(
+        &mut self,
+        chart_type: &str,
+        data: Vec<Value>,
+        mut options: ChartElement,
+    ) -> &mut Self {
         self.invalidate();
         options.chart = chart_type.into();
         options.data = data;
@@ -242,11 +252,7 @@ impl PosterBuilder {
     }
 
     /// 颜文字（预置表情名，见 `elements::emoticon::expressions`）。
-    pub fn add_emoticon(
-        &mut self,
-        expression: &str,
-        mut options: EmoticonElement,
-    ) -> &mut Self {
+    pub fn add_emoticon(&mut self, expression: &str, mut options: EmoticonElement) -> &mut Self {
         self.invalidate();
         options.expression = expression.into();
         self.elements.push(Element::Emoticon(options));
@@ -459,7 +465,9 @@ fn gradient_canvas(
         };
         match direction {
             Direction::Vertical => canvas.rectangle(0, offset as i32, width, length, &options)?,
-            Direction::Horizontal => canvas.rectangle(offset as i32, 0, length, height, &options)?,
+            Direction::Horizontal => {
+                canvas.rectangle(offset as i32, 0, length, height, &options)?
+            }
         }
         offset += band;
     }
