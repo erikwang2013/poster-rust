@@ -49,8 +49,9 @@ pub trait Storage: Send + Sync {
     /// 写入并重置计数；`ttl` 为有效期（`Duration::ZERO` 视为立即过期）。
     fn set(&self, key: &str, value: &[u8], ttl: Duration) -> Result<()>;
 
-    /// 删除；键不存在不算错误。
-    fn delete(&self, key: &str) -> Result<()>;
+    /// 删除；键不存在不算错误。返回是否**真的删到了**（`false` = 键本就不存在）——
+    /// 并发双花场景下这是「抢到删除」的唯一凭据。
+    fn delete(&self, key: &str) -> Result<bool>;
 
     /// 原子自增该 key 的尝试计数并返回新值（从 1 开始）。
     ///
@@ -58,6 +59,13 @@ pub trait Storage: Send + Sync {
     /// 调用方拿到 `None` 必须判失败，否则并发下的「读计数 → 校验 → 累加」
     /// 窗口会被用来放大放行次数。
     fn increment(&self, key: &str) -> Result<Option<u64>>;
+
+    /// 原子自增；键不存在时以计数 1 创建（并带上 `ttl`），返回自增后的值。
+    ///
+    /// 与 [`increment`](Self::increment) 的区别：这是「计数即全部」的键（限流窗口计数），
+    /// 没有独立的载荷键可依附，所以允许凭空建键；`ttl` 是唯一的回收手段，
+    /// 后端若无法保证 TTL 落上必须返回 `None`（`None` = 计数不可用，调用方失败关闭）。
+    fn increment_or_init(&self, key: &str, ttl: Duration) -> Result<Option<u64>>;
 }
 
 /// 文件/内存后端共用的记录格式：值 + 尝试计数 + 绝对到期时刻（Unix 毫秒）。

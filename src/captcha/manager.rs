@@ -1,12 +1,15 @@
 //! 验证码管理器，对应 PHP `CaptchaManager`：创建 → 生成 → 校验的入口。
 //!
-//! 校验顺序与 PHP 一致：
+//! 校验顺序（前两步是 Rust 侧的加固，其余与 PHP 一致）：
+//! 0. key 形态检查：必须是 `generate_key()` 产出的 32 位十六进制，否则直接失败——
+//!    key 要拼进存储键名（`captcha:{key}`），放任任意字符串等于把别的命名空间
+//!    （`rate:` / `probe:`）暴露给调用方；
 //! 1. 跨 key 的窗口限流先行——单 key 计数挡不住「每次换新 key 再猜一次」；
 //! 2. 取载荷，缺失（不存在 / 已过期 / 损坏）即失败；
 //! 3. **先自增再判定**，以存储的原子自增返回值为本次尝试序号：读写之间即使有并发插入，
 //!    也不会放大放行次数；
 //! 4. 超出 `captcha.max_attempts` → 删 key（连图片一起），失败；
-//! 5. 通过 → 删 key（一次性），失败 → 保留剩余次数。
+//! 5. 通过 → **抢删载荷**（`delete` 返回 true 的那次才算通过，见图），失败 → 保留剩余次数。
 //!
 //! 类型从存储的载荷里取，`verify()` 不必再传 type；答案变体与载荷类型不符时返回
 //! `Ok(false)`。存储故障以 `Err` 上抛（PHP 一律吞成 false，Rust 侧让部署问题可见）。
@@ -20,7 +23,9 @@ use crate::config::PosterConfig;
 use crate::error::Result;
 use crate::storage::{FileStorage, MemoryStorage, Storage};
 
-use super::{Answer, CaptchaBuilder, CaptchaFactory, Ctx, image_key, rate_limiter, trajectory};
+use super::{
+    Answer, CaptchaBuilder, CaptchaFactory, Ctx, image_key, payload_key, rate_limiter, trajectory,
+};
 
 /// 验证码管理器。`Send + Sync`，无全局可变状态，可 `Arc` 共享给各 Web 框架的请求守卫。
 pub struct CaptchaManager {
@@ -103,6 +108,13 @@ impl CaptchaManager {
 
     /// 校验，显式指定限流身份（多用户服务应走这个入口：IP / uid / session）。
     pub fn verify_as(&self, key: &str, answer: Answer, identity: &str) -> Result<bool> {
+        // 先卡 key 形态再碰存储：key 是存储键名的一部分，放任任意字符串就给了
+        // 「提交 rate:… / probe:… 去读写别人的键」的通道（审计：rate: 前缀曾被用来
+        // 删掉自己的限流记录）。非法 key 直接失败，连限流计数都不消耗。
+        if !is_valid_key(key) {
+            return Ok(false);
+        }
+
         let config = &self.ctx.config;
         if !rate_limiter::allow(
             &config.captcha.rate_limit,
@@ -112,7 +124,8 @@ impl CaptchaManager {
             return Ok(false);
         }
 
-        let Some(entry) = self.ctx.storage.get(key)? else {
+        let store_key = payload_key(key);
+        let Some(entry) = self.ctx.storage.get(&store_key)? else {
             return Ok(false);
         };
         // 载荷损坏按「不存在」处理（PHP 各存储实现同样以 null/0 表达）
@@ -120,7 +133,7 @@ impl CaptchaManager {
             return Ok(false);
         };
 
-        let Some(attempts) = self.ctx.storage.increment(key)? else {
+        let Some(attempts) = self.ctx.storage.increment(&store_key)? else {
             // 自增不可用：拿不到可信序号，失败关闭
             return Ok(false);
         };
@@ -129,16 +142,24 @@ impl CaptchaManager {
             return Ok(false);
         }
 
-        let passed = check(config, &payload, &answer);
-        if passed {
-            self.drop_keys(key)?;
+        if !check(config, &payload, &answer) {
+            return Ok(false);
         }
-        Ok(passed)
+        // 一次性语义 = 抢删除：并发提交同一 key 时只有一个请求真的删到载荷，
+        // 其余（读到的是同一份载荷）不算通过，杜绝并发双花。
+        if !self.ctx.storage.delete(&store_key)? {
+            return Ok(false);
+        }
+        self.ctx.storage.delete(&image_key(key))?;
+        Ok(true)
     }
 
     /// 取生成时持久化的图片 PNG 字节，供框架层的 `GET {path}/{key}` 端点直出
     /// （等价 PHP 的 `captcha.route` / `CaptchaImage::png()`）。key 不存在或已过期返回 `None`。
     pub fn image_bytes(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        if !is_valid_key(key) {
+            return Ok(None);
+        }
         Ok(self
             .ctx
             .storage
@@ -146,12 +167,20 @@ impl CaptchaManager {
             .map(|entry| entry.value))
     }
 
-    /// 删除答案与图片（一次性语义）。
+    /// 删除答案与图片（超限作废用）。
     fn drop_keys(&self, key: &str) -> Result<()> {
-        self.ctx.storage.delete(key)?;
+        self.ctx.storage.delete(&payload_key(key))?;
         self.ctx.storage.delete(&image_key(key))?;
         Ok(())
     }
+}
+
+/// key 的合法形态：`generate_key()` 产出的 32 位十六进制（大小写皆可）。
+///
+/// 存储键名由它拼出（`captcha:{key}` / `captcha:{key}:img`），入口必须卡死，
+/// 否则任意字符串都能拼进存储命名空间。
+fn is_valid_key(key: &str) -> bool {
+    key.len() == 32 && key.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 /// 类型 + 答案比对，容差与轨迹口径见模块文档。

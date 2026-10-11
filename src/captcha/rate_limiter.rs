@@ -5,13 +5,15 @@
 //! 这里按「身份」（登录用户可用 uid，默认由框架层注入客户端 IP 等）在窗口内计数，
 //! 超出 `captcha.rate_limit.max` 即拒绝。
 //!
-//! 计数键为 `rate:{身份哈希}`，窗口序号写进记录：窗口滚动即重新计数，TTL 取窗口长度，
-//! 过期由存储自动回收。计数取自 `Storage::increment()` 的原子自增返回值。
+//! 计数键为 `rate:{身份哈希}:{窗口序号}`：窗口序号写进键名，滚动即换键、旧键靠 TTL 自然过期；
+//! 键的创建 + 自增走 `Storage::increment_or_init()` 一次原子操作，没有「读到旧窗口 → 覆写 →
+//! 自增」三步里的并发突刺（两次 `set` 之间读到的计数会互相覆盖）。
 //!
 //! `max <= 0` 或 `window_secs == 0` 视为关闭限流（全量放行，同 PHP）。
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use std::collections::hash_map::RandomState;
+use std::hash::{BuildHasher, Hash, Hasher};
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use crate::config::RateLimitOptions;
@@ -20,6 +22,13 @@ use crate::storage::{Storage, now_secs};
 
 /// 计数键前缀（同 PHP `RateLimiter::KEY_PREFIX`）。
 pub(crate) const KEY_PREFIX: &str = "rate:";
+
+/// 进程级哈希种子。
+///
+/// `DefaultHasher::new()` 是固定种子：身份哈希可离线复算，攻击者能拼出别人的计数键
+/// （历史上正是靠这一点删掉了自己的限流记录）。`RandomState` 每进程随机；
+/// 必须 `static`——每次调用新建会让同一身份的哈希各不相同，分桶直接失效。
+static HASH_STATE: OnceLock<RandomState> = OnceLock::new();
 
 /// 记录一次校验尝试。
 ///
@@ -35,35 +44,23 @@ pub(crate) fn allow(
         return Ok(true);
     }
 
-    let key = format!("{KEY_PREFIX}{:016x}", hash_identity(identity));
     let window_index = now_secs() / config.window_secs;
+    let key = format!("{KEY_PREFIX}{:016x}:{window_index}", hash_identity(identity));
+    let ttl = Duration::from_secs(config.window_secs);
 
-    // 窗口滚动即重置：用新窗口序号覆写记录（set 会同时把计数清零）
-    let stale = match storage.get(&key)? {
-        None => true,
-        Some(entry) => entry.value != window_index.to_string().as_bytes(),
-    };
-    if stale {
-        storage.set(
-            &key,
-            window_index.to_string().as_bytes(),
-            Duration::from_secs(config.window_secs),
-        )?;
-    }
-
-    // 自增不可用（键刚过期 / 被并发清掉 / 写失败）时拿不到可信计数，
-    // 此时必须失败关闭而不是当作第 1 次放行
-    let Some(count) = storage.increment(&key)? else {
+    // 键不存在→创建为 1，存在→原子自增（窗口滚动即换键，无覆写竞态）。
+    // 计数不可用（写失败 / TTL 落不上）时拿不到可信计数，必须失败关闭。
+    let Some(count) = storage.increment_or_init(&key, ttl)? else {
         return Ok(false);
     };
 
     Ok(count <= config.max as u64)
 }
 
-/// 身份 → 定长计数键。用 `DefaultHasher`（`SipHash-1-3`，固定种子）等价 PHP 的 `md5($identity)`：
-/// 只为定长，不为抗碰撞——攻击者控制不了「被限流者是不是自己」这件事。
+/// 身份 → 定长计数键。用进程级 `RandomState`（随机种子的 SipHash-1-3）等价 PHP 的 `md5($identity)`：
+/// 只为定长，不为抗碰撞——但要防「可离线复算」。
 fn hash_identity(identity: &str) -> u64 {
-    let mut hasher = DefaultHasher::new();
+    let mut hasher = HASH_STATE.get_or_init(RandomState::new).build_hasher();
     identity.hash(&mut hasher);
     hasher.finish()
 }

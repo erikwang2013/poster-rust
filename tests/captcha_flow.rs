@@ -19,10 +19,15 @@ fn manager() -> (CaptchaManager, Arc<MemoryStorage>) {
     manager_with(PosterConfig::default())
 }
 
+/// 载荷在存储里的键：用户 key 被圈进 `captcha:` 命名空间（限流键是 `rate:`、探针是 `probe:`）。
+fn store_key(key: &str) -> String {
+    format!("captcha:{key}")
+}
+
 /// 存储里的答案载荷（含 `type` / `attempts` / 各类型答案）。
 fn payload(storage: &MemoryStorage, key: &str) -> serde_json::Value {
     storage
-        .get(key)
+        .get(&store_key(key))
         .expect("存储读取失败")
         .expect("key 不在存储里")
         .json()
@@ -74,8 +79,10 @@ fn click_generates_and_verifies_with_the_internal_answer() {
 
     assert!(manager.verify(&result.key, click_answer(&payload)).unwrap());
     // 一次性：通过后答案与图片都清掉
-    assert!(storage.get(&result.key).unwrap().is_none());
+    assert!(storage.get(&store_key(&result.key)).unwrap().is_none());
     assert!(manager.image_bytes(&result.key).unwrap().is_none());
+    // 串行二发：同一答案再提交一次只能是 false
+    assert!(!manager.verify(&result.key, click_answer(&payload)).unwrap());
 }
 
 #[test]
@@ -129,7 +136,7 @@ fn wrong_answer_fails_and_keeps_the_key() {
 
     assert!(!manager.verify(&result.key, Answer::Slider(x + 500.0)).unwrap());
     assert!(
-        storage.get(&result.key).unwrap().is_some(),
+        storage.get(&store_key(&result.key)).unwrap().is_some(),
         "失败后 key 应保留剩余次数"
     );
     assert!(manager.verify(&result.key, Answer::Slider(x)).unwrap());
@@ -205,14 +212,14 @@ fn attempts_over_the_limit_drop_the_key() {
             "第 {round} 次错误答案"
         );
         assert!(
-            storage.get(&result.key).unwrap().is_some(),
+            storage.get(&store_key(&result.key)).unwrap().is_some(),
             "第 {round} 次后 key 仍在（上限 3）"
         );
     }
 
     // 第 4 次：先判超限，正确答案也拒绝，且 key（含图片）被清掉
     assert!(!manager.verify(&result.key, Answer::Slider(x)).unwrap());
-    assert!(storage.get(&result.key).unwrap().is_none());
+    assert!(storage.get(&store_key(&result.key)).unwrap().is_none());
     assert!(manager.image_bytes(&result.key).unwrap().is_none());
 }
 
@@ -232,7 +239,7 @@ fn expired_captcha_is_gone() {
 
     std::thread::sleep(std::time::Duration::from_millis(1200));
 
-    assert!(storage.get(&result.key).unwrap().is_none(), "答案已过期");
+    assert!(storage.get(&store_key(&result.key)).unwrap().is_none(), "答案已过期");
     assert!(manager.image_bytes(&result.key).unwrap().is_none());
     assert!(!manager.verify(&result.key, Answer::Slider(x)).unwrap());
 }
@@ -278,6 +285,80 @@ fn rate_limit_is_cross_key_and_per_identity() {
             .verify_as(&result.key, Answer::Slider(x), "5.6.7.8")
             .unwrap()
     );
+}
+
+#[test]
+fn malformed_keys_never_reach_the_storage() {
+    let (manager, storage) = manager();
+    let result = manager
+        .create(Some("slider"))
+        .unwrap()
+        .generate()
+        .unwrap();
+    let x = slider_x(&storage, &result.key);
+    let before = storage.len();
+    assert_eq!(before, 2, "载荷 + 图片");
+
+    for bad in [
+        "rate:0123456789abcdef", // 旧攻击面：提交限流键的形态，试图删掉自己的限流记录
+        "captcha:0123456789abcdef0123456789abcdef", // 前缀由我们拼，不必自己带
+        "",
+        "short",
+        &"a".repeat(33),   // 超长
+        &"g".repeat(32),   // 非十六进制
+        &"中".repeat(32),  // 32 字符但 96 字节
+    ] {
+        assert!(
+            !manager.verify_as(bad, Answer::Slider(x), "1.2.3.4").unwrap(),
+            "key = {bad:?} 应直接判失败"
+        );
+        assert!(manager.image_bytes(bad).unwrap().is_none(), "key = {bad:?}");
+    }
+    // 非法 key 一个字节都不该碰存储：没有新的限流记录，载荷计数也不动
+    assert_eq!(storage.len(), before, "非法 key 不应触碰存储");
+    assert_eq!(payload(&storage, &result.key)["attempts"], 0);
+    assert!(manager.image_bytes(&result.key).unwrap().is_some());
+
+    // 合法的 32-hex key 端到端仍绿
+    assert!(
+        manager
+            .verify_as(&result.key, Answer::Slider(x), "1.2.3.4")
+            .unwrap()
+    );
+}
+
+#[test]
+fn concurrent_verifies_have_exactly_one_winner() {
+    use std::sync::Barrier;
+
+    let (manager, storage) = manager();
+    let result = manager
+        .create(Some("slider"))
+        .unwrap()
+        .generate()
+        .unwrap();
+    let x = slider_x(&storage, &result.key);
+
+    let manager = Arc::new(manager);
+    let barrier = Arc::new(Barrier::new(2));
+    let handles: Vec<_> = (0..2)
+        .map(|_| {
+            let manager = Arc::clone(&manager);
+            let barrier = Arc::clone(&barrier);
+            let key = result.key.clone();
+            std::thread::spawn(move || {
+                barrier.wait(); // 尽量让两个请求同时进 verify
+                manager.verify(&key, Answer::Slider(x)).unwrap()
+            })
+        })
+        .collect();
+
+    let winners = handles
+        .into_iter()
+        .map(|handle| handle.join().unwrap())
+        .filter(|passed| *passed)
+        .count();
+    assert_eq!(winners, 1, "并发双花：同一 key 只允许一个请求通过");
 }
 
 #[test]

@@ -5,7 +5,7 @@
 //! 轨迹校验默认关闭（min_points 4 / 300–5000ms / max_linearity 0.99）。
 //!
 //! 与 PHP 的差异（有意为之，逐条见各文件文档注释）：
-//! - 图片 PNG 字节**一并持久化**（`{key}:img`），供框架层的 `GET {path}/{key}` 端点直出，
+//! - 图片 PNG 字节**一并持久化**（`captcha:{key}:img`），供框架层的 `GET {path}/{key}` 端点直出，
 //!   不必把 base64 塞进载荷再解回来；成功校验时与答案一起删除；
 //! - `set_background()` 指向的文件不存在时直接报错，不再像 PHP 那样静默回落到配置背景；
 //! - 「计数不可用」在 Rust 侧以 `Option` 表达并由调用方失败关闭，语义与 PHP 的返回值 0 相同。
@@ -45,6 +45,7 @@ pub use trajectory::Trajectory;
 /// 验证码类型。`Random` 只是**请求**语义，生成时会解析成三种之一（同 PHP 工厂）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum CaptchaType {
     /// 点击文字 / 图标。
     Click,
@@ -100,6 +101,7 @@ impl std::str::FromStr for CaptchaType {
 /// 难度：`easy` 2 个点击目标 / `hard` 4 个。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum Difficulty {
     /// 简单。
     Easy,
@@ -136,6 +138,7 @@ impl Difficulty {
 /// 滑块拼图形状。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum SliderShape {
     /// 矩形缺口（默认）。
     #[default]
@@ -168,6 +171,7 @@ impl SliderShape {
 /// 点击验证码的目标形态。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum TargetType {
     /// 文字（默认）。
     #[default]
@@ -203,6 +207,7 @@ impl TargetType {
 /// （默认外部标签）：`{"Slider": 173.0}`、`{"Click": [[120.0, 80.0]]}`、
 /// `{"SliderWithTrail": {"x": 173.0, "trail": [[12.0, 3.0, 0.0]], "duration_ms": 1200}}`。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum Answer {
     /// 点击坐标，顺序须与提示一致。
     Click(Vec<(f32, f32)>),
@@ -534,7 +539,7 @@ impl Base {
         let ttl = Duration::from_secs(self.ctx.config.captcha.ttl_secs);
         self.ctx
             .storage
-            .set(&self.key, Value::Object(payload).to_string().as_bytes(), ttl)?;
+            .set(&payload_key(&self.key), Value::Object(payload).to_string().as_bytes(), ttl)?;
         self.ctx
             .storage
             .set(&image_key(&self.key), png, ttl)?;
@@ -555,9 +560,16 @@ pub(crate) fn generate_key() -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// 载荷（答案）在存储里的键。加 `captcha:` 前缀把「用户提交的 key」圈进自己的命名空间，
+/// 免得拼出 `rate:…` 这类**别的子系统**的键名（限流键 / 探针键各有前缀）。
+/// 入口还须配合 `manager::is_valid_key` 卡死 key 形态，见那里的注释。
+pub(crate) fn payload_key(key: &str) -> String {
+    format!("captcha:{key}")
+}
+
 /// 图片在存储里的键（与答案同 TTL、同生死）。
 pub(crate) fn image_key(key: &str) -> String {
-    format!("{key}:img")
+    format!("{}:img", payload_key(key))
 }
 
 /// PNG 字节 → data URI。

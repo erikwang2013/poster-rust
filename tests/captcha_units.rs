@@ -19,9 +19,10 @@ fn manager() -> (CaptchaManager, Arc<MemoryStorage>) {
     manager_with(PosterConfig::default())
 }
 
+/// 载荷在存储里的键：用户 key 被圈进 `captcha:` 命名空间（与 `src/captcha::payload_key` 同口径）。
 fn payload(storage: &MemoryStorage, key: &str) -> serde_json::Value {
     storage
-        .get(key)
+        .get(&format!("captcha:{key}"))
         .expect("存储读取失败")
         .expect("key 不在存储里")
         .json()

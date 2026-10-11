@@ -33,11 +33,26 @@ fn memory_round_trip_and_ttl() {
     storage.set(key, b"v2", Duration::from_secs(60)).unwrap();
     assert_eq!(storage.increment(key).unwrap(), Some(1));
 
-    storage.delete(key).unwrap();
+    assert!(storage.delete(key).unwrap(), "删到了");
+    assert!(!storage.delete(key).unwrap(), "键已不在：删不到");
     assert!(storage.get(key).unwrap().is_none());
     assert!(storage.is_empty());
     // 键不存在：increment 返回 None（不是 0，也不是 Some(1)）
     assert_eq!(storage.increment(key).unwrap(), None);
+}
+
+#[test]
+fn memory_increment_or_init_counts_from_one() {
+    let storage = MemoryStorage::new();
+    let key = "rate:abc:7";
+    let ttl = Duration::from_secs(60);
+
+    assert_eq!(storage.increment_or_init(key, ttl).unwrap(), Some(1), "键不存在→创建");
+    assert_eq!(storage.increment_or_init(key, ttl).unwrap(), Some(2));
+    assert_eq!(storage.increment_or_init("rate:abc:8", ttl).unwrap(), Some(1), "换窗口即换键");
+    // 报告出来的 TTL 由传入的 ttl 决定（限流键唯一的回收手段）
+    let remaining = storage.get(key).unwrap().unwrap().ttl.unwrap();
+    assert!(remaining <= Duration::from_secs(60) && remaining > Duration::from_secs(55));
 }
 
 #[test]
@@ -73,6 +88,23 @@ fn file_round_trip_and_ttl() {
 
     storage.delete("k").unwrap();
     assert!(storage.get("k").unwrap().is_none());
+}
+
+#[test]
+fn file_increment_or_init_counts_from_one() {
+    let dir = tmp_dir("file-incr-init");
+    let storage = FileStorage::new(&dir).unwrap();
+    let ttl = Duration::from_secs(60);
+
+    assert_eq!(storage.increment_or_init("rate:a:1", ttl).unwrap(), Some(1));
+    assert_eq!(storage.increment_or_init("rate:a:1", ttl).unwrap(), Some(2));
+    assert_eq!(storage.increment_or_init("rate:a:2", ttl).unwrap(), Some(1), "换窗口即换键");
+
+    // 限流键是纯计数键：没有载荷也能建（旧实现会因「主键不存在」拿不到计数）
+    assert!(storage.get("rate:a:1").unwrap().is_some());
+
+    assert!(storage.delete("rate:a:1").unwrap());
+    assert!(!storage.delete("rate:a:1").unwrap(), "键已不在：删不到");
 }
 
 #[test]
@@ -191,6 +223,18 @@ fn redis_round_trip_or_skip() {
     // 键不存在：INCR 出来的计数键要清掉，返回 None（失败关闭）
     assert_eq!(storage.increment("missing").unwrap(), None);
 
-    storage.delete("k").unwrap();
+    // 限流计数键：凭空建键 + 自增，键本身必须带 TTL（否则泄漏）
+    assert_eq!(
+        storage.increment_or_init("rate:w:1", Duration::from_secs(30)).unwrap(),
+        Some(1)
+    );
+    assert_eq!(
+        storage.increment_or_init("rate:w:1", Duration::from_secs(30)).unwrap(),
+        Some(2)
+    );
+    assert!(storage.delete("rate:w:1").unwrap(), "计数键删得到");
+    assert!(!storage.delete("rate:w:1").unwrap(), "键已不在：删不到");
+
+    assert!(storage.delete("k").unwrap());
     assert!(storage.get("k").unwrap().is_none());
 }
