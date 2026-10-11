@@ -2,6 +2,44 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### 安全
+- 限流记录与验证码载荷彻底隔离：校验入口强校验 key 形态（32 位 hex），载荷键加 `captcha:` 命名空间——
+  修复「把限流键当验证码 key 提交可自删限流记录」的跨 key 限流绕过。
+- 限流身份哈希改用进程级随机种子（`RandomState`），不再可离线复算。
+- `X-Forwarded-For` 默认不再采信（只信对端 IP）；确需按真实客户端分桶的部署显式开启
+  `Guard::with_trust_forwarded_for(true)`（仅限覆写式可信代理）。
+- warp / poem 的 verify 请求体补 2 MiB 上限（超限 413），与其他框架对齐。
+
+### 修复
+- 限流原子化：窗口序号并入计数键，新增 `Storage::increment_or_init`，消除窗口边界的并发突刺超发。
+- 验证码一次性消费改为原子抢删（`Storage::delete` 返回 `Result<bool>`）：并发下恰好一个请求兑换成功。
+- 存储回收与预算：Memory / File 摊还清扫过期条目；Memory 64 MiB、File 65536 文件预算（超限失败关闭）。
+- 旋转文本临时画布像素预算 + 字形覆盖事件上限（超大模板参数返回错误而非 OOM / panic）。
+- 艺术字描边宽度上限；元素几何护栏（table / chart / avatar / calendar 越界参数报错，不再溢出回绕）。
+- `FileStorage::set` 持锁，与 `increment` 的读改写串行（消除丢失更新）。
+- Redis 存储：读写超时 5s + 出错丢弃连接、下次惰性重建（后端抖动不再挂死整条链路）。
+- warp / rocket 端点契约：`?type=` 与其余框架一致、warp 生成失败回 500、出图补 `Content-Type`。
+- bee-rust：`register()` 补 verify 路由；`router(guard)` 不再丢弃参数（签名改为 `-> axum::Router`）。
+- 换行支持假名 / 谚文等 CJK 扩展区（单 token 超宽逐字断行，不再整段溢出）。
+- 模板 snake_case 键（`max_width` / `line_height` 等）不再被静默忽略（补 serde alias）。
+- 修复 3 个模块 doctest 编译错误（全特性 CI 此前连红 8 次）。
+- 8 个框架适配器：生成 / 校验 / 出图的阻塞调用移入阻塞池（`spawn_blocking` / `web::block`）。
+- `PosterConfig::validate()`：`set_global` 校验非法配置（0 `ttl_secs` / 0 `max_attempts` / 越界质量等）并报错。
+
+### 性能
+- 字体加载与整行渲染缓存改为进程级（跨请求复用；键含文件 mtime，换字体自动失效）。
+
+### 变更
+- 公共枚举加 `#[non_exhaustive]`（`PosterError` / `Answer` / `CaptchaType` / `Difficulty` / `SliderShape` /
+  `TargetType` / `TextAlign` / `EcLevel` / `Direction` / `Element` / `BackgroundSource` / `Placeholder`）——
+  下游穷举 `match` 需保留通配臂（API 硬化）。
+
+### 文档
+- 全文档去 PHP 化（源码注释 / 测试名 / README 中英 / 架构文档 / 图表脚本），技术事实与数值原样保留；README 数字实测修正。
+- CI 新增 9 个单 feature 编译矩阵；rustfmt 全仓落地，fmt 门禁转正。
+
 ## [1.1.2] - 2026-10-07
 
 ### 文档
