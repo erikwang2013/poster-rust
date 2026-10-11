@@ -101,6 +101,10 @@ impl Guard {
     }
 
     /// 供适配器 handler 读取（外部无需访问，用 [`Guard::with_trust_forwarded_for`] 设置即可）。
+    ///
+    /// 未开任何框架 feature 时没有调用方，`allow(dead_code)` 消除该组合的构建警告
+    /// （同时保住字段的「被读取」事实，避免字段级 dead_code 告警）。
+    #[allow(dead_code)]
     pub(crate) fn trust_forwarded_for(&self) -> bool {
         self.trust_forwarded_for
     }
