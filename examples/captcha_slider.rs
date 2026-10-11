@@ -35,7 +35,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let puzzle = output.join(format!("slider-{}-puzzle.png", result.key));
     std::fs::write(&puzzle, decode_data_uri(result.extra["puzzle"].as_str().ok_or("缺 puzzle")?)?)?;
 
-    let payload = storage.get(&result.key)?.ok_or("答案不在存储里")?.json()?;
+    // 载荷在存储里的键：用户 key 被圈进 `captcha:` 命名空间
+    let payload = storage
+        .get(&format!("captcha:{}", result.key))?
+        .ok_or("答案不在存储里")?
+        .json()?;
     let x = payload["x"].as_f64().ok_or("载荷缺 x")? as f32;
 
     println!("key        = {}", result.key);

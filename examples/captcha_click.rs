@@ -31,7 +31,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         manager.image_bytes(&result.key)?.ok_or("图片未持久化")?,
     )?;
 
-    let payload = storage.get(&result.key)?.ok_or("答案不在存储里")?.json()?;
+    // 载荷在存储里的键：用户 key 被圈进 `captcha:` 命名空间
+    let payload = storage
+        .get(&format!("captcha:{}", result.key))?
+        .ok_or("答案不在存储里")?
+        .json()?;
     let targets = payload["targets"].as_array().ok_or("载荷缺 targets")?;
     let answer: Vec<(f32, f32)> = targets
         .iter()
