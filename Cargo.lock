@@ -2489,7 +2489,7 @@ dependencies = [
 
 [[package]]
 name = "poster-rust"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "ab_glyph",
  "actix-web",

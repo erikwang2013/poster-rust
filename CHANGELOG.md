@@ -2,6 +2,12 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.0.1] - 2026-10-11
+
+### 修复
+- 未启用任何框架 feature 时 `Guard::trust_forwarded_for` 的内部 getter 触发 `dead_code` 构建告警（v2.0.0 引入）——
+  该组合下没有调用方，加 `allow(dead_code)` 并注明原因（同时保住字段「被读取」的事实，避免字段级告警）。
+
 ## [2.0.0] - 2026-10-11
 
 ### 安全
@@ -122,6 +128,7 @@
   默认中文字体阿里巴巴普惠体。
 - 中英双语文档 + 架构 / 功能设计图。
 
+[2.0.1]: https://github.com/erikwang2013/poster-rust/releases/tag/v2.0.1
 [2.0.0]: https://github.com/erikwang2013/poster-rust/releases/tag/v2.0.0
 [1.1.2]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.1.2
 [1.1.1]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.1.1
