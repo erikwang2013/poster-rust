@@ -108,7 +108,10 @@ async fn generate_serve_and_verify_roundtrip() {
 
 /// `rate_limit.max = 1` 的应用：存储句柄一并返回，供测试读出滑块答案
 /// （HTTP 不回传答案，只有正确/错误两种可观察结果）。
-fn rate_limited_app() -> (Router, Arc<MemoryStorage>) {
+///
+/// `trust_forwarded_for` 决定是否采信 `X-Forwarded-For` 作为限流身份：
+/// 默认 `false`，测试里用 [`rate_limited_app_trusting_xff`] 显式开启。
+fn rate_limited_app(trust_forwarded_for: bool) -> (Router, Arc<MemoryStorage>) {
     let storage = Arc::new(MemoryStorage::new());
     let mut config = PosterConfig::default();
     config.captcha.rate_limit.max = 1;
@@ -117,12 +120,18 @@ fn rate_limited_app() -> (Router, Arc<MemoryStorage>) {
         Arc::new(config),
         storage.clone(),
     ));
+    let guard = Guard::from_manager(manager)
+        .unwrap()
+        .with_trust_forwarded_for(trust_forwarded_for);
     let app = Router::new()
         .merge(captcha_routes::<AppState>())
-        .with_state(AppState {
-            captcha: Guard::from_manager(manager).unwrap(),
-        });
+        .with_state(AppState { captcha: guard });
     (app, storage)
+}
+
+/// 开启 XFF 信任的限流应用（模拟「可信代理已覆写 XFF」的部署）。
+fn rate_limited_app_trusting_xff() -> (Router, Arc<MemoryStorage>) {
+    rate_limited_app(true)
 }
 
 /// 生成一张滑块验证码，并从存储里读出目标 x 作为正确答案。
@@ -170,11 +179,11 @@ async fn post_verify(app: &Router, key: &str, x: f32, xff: &str) -> bool {
     body_json(resp).await["pass"].as_bool().unwrap()
 }
 
-/// 限流身份按请求派生（XFF 第一段），而不是所有请求共用常量 `"default"` 桶：
+/// 限流身份按请求派生（显式开启信任后的 XFF 第一段），而不是所有请求共用常量 `"default"` 桶：
 /// 同身份第二个正确校验因超限被拒，换身份后仍放行。
 #[tokio::test]
 async fn verify_rate_limit_buckets_by_request_identity() {
-    let (app, storage) = rate_limited_app();
+    let (app, storage) = rate_limited_app_trusting_xff();
 
     // 身份 A 第一次：答案正确且配额充足 → 放行（顺带用满本窗口的 1 次配额）
     let (key, x) = slider_key_with_answer(&app, &storage).await;
@@ -192,5 +201,22 @@ async fn verify_rate_limit_buckets_by_request_identity() {
     assert!(
         post_verify(&app, &key, x, "198.51.100.9").await,
         "不同身份应各自独立成桶"
+    );
+}
+
+/// 默认（未开启信任）不采信 `X-Forwarded-For`：伪造头换不来新桶。
+/// 测试客户端没有 connect info → 对端 IP 取不到 → 身份恒为 `"unknown"`，
+/// 因此三个不同伪造 IP 仍打同一个桶，第二个就超限被拒。
+#[tokio::test]
+async fn forged_xff_does_not_change_bucket_by_default() {
+    let (app, storage) = rate_limited_app(false);
+
+    let (key, x) = slider_key_with_answer(&app, &storage).await;
+    assert!(post_verify(&app, &key, x, "203.0.113.7").await, "首次校验应通过");
+
+    let (key, x) = slider_key_with_answer(&app, &storage).await;
+    assert!(
+        !post_verify(&app, &key, x, "198.51.100.9").await,
+        "默认不采信 XFF：换个伪造 IP 也应共用同一个桶并超限被拒"
     );
 }

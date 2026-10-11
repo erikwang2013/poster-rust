@@ -16,27 +16,26 @@
 
 use bee_router::router::RouteGroup;
 
-use super::axum::{GuardState, captcha_image, captcha_new};
+use super::axum::{GuardState, captcha_image, captcha_new, captcha_verify};
 use crate::guard::Guard;
 
-/// 在 bee_router 的路由组上注册出图与生成两条路由（前缀由调用方的 `ns()` 决定）。
+/// 在 bee_router 的路由组上注册生成、校验、出图三条路由（前缀由调用方的 `ns()` 决定）。
 pub fn register<S>(group: RouteGroup<S>) -> RouteGroup<S>
 where
     S: GuardState + Clone + Send + Sync + 'static,
 {
     group
         .get("/captcha/new", captcha_new::<S>)
+        .post("/captcha/verify", captcha_verify::<S>)
         .get("/captcha/{key}", captcha_image::<S>)
 }
 
-/// 生成路由组所需的 axum 状态挂钩：`impl GuardState for AppState`。
+/// 生成路由组所需的 axum 状态挂钩：`impl GuardState for AppState`
+/// （`Guard` 自身也实现了它，见 [`super::axum::GuardState`] 的 impl）。
 pub use super::axum::GuardState as BeeGuardState;
 
-/// 便捷构造：把 `Guard` 直接作为状态构建 axum Router（bee-rust 的 `build()` 产物同类型）。
-pub fn router<S>(guard: Guard) -> axum::Router<S>
-where
-    S: GuardState + Clone + Send + Sync + 'static,
-{
-    let _ = guard;
-    super::axum::captcha_routes_at("/captcha")
+/// 便捷构造：把 `Guard` 直接作为 axum 状态，返回装好三条路由的 Router
+/// （`Guard: GuardState`，无需再自定义状态类型）。
+pub fn router(guard: Guard) -> axum::Router {
+    super::axum::captcha_routes::<Guard>().with_state(guard)
 }

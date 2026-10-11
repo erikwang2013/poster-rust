@@ -4,15 +4,18 @@
 //! use actix_web::{web, App, HttpServer};
 //! use poster::{Guard, captcha::CaptchaManager, integrations::actix::configure};
 //!
-//! # fn main() -> std::io::Result<()> {
-//! let guard = Guard::from_manager(std::sync::Arc::new(CaptchaManager::new().unwrap())).unwrap();
-//! HttpServer::new(move || {
-//!     App::new()
-//!         .app_data(web::Data::new(guard.clone()))
-//!         .configure(configure)          // /captcha/new、/captcha/verify、/captcha/{key}
-//! })
-//! # .bind(("127.0.0.1", 8080))?.run()
-//! # }
+//! #[actix_web::main]
+//! async fn main() -> std::io::Result<()> {
+//!     let guard = Guard::from_manager(std::sync::Arc::new(CaptchaManager::new().unwrap())).unwrap();
+//!     HttpServer::new(move || {
+//!         App::new()
+//!             .app_data(web::Data::new(guard.clone()))
+//!             .configure(configure)          // /captcha/new、/captcha/verify、/captcha/{key}
+//!     })
+//!     .bind(("127.0.0.1", 8080))?
+//!     .run()
+//!     .await
+//! }
 //! ```
 
 use std::future::{Ready, ready};
@@ -24,6 +27,18 @@ use actix_web::{FromRequest, HttpRequest, HttpResponse, Responder};
 
 use crate::captcha::Answer;
 use crate::guard::{Guard, client_identity};
+
+/// 把可能阻塞的 Guard 调用丢进 actix 的阻塞线程池（`web::block`，对应其余框架的 `run_blocking`）。
+async fn run_blocking<T>(
+    f: impl FnOnce() -> crate::error::Result<T> + Send + 'static,
+) -> crate::error::Result<T>
+where
+    T: Send + 'static,
+{
+    web::block(f)
+        .await
+        .unwrap_or_else(|_| Err(crate::error::PosterError::Other("阻塞任务 panic".into())))
+}
 
 /// `Guard` 的 actix 提取器：从 `web::Data<Guard>` 取（未注册时 500）。
 impl FromRequest for Guard {
@@ -45,7 +60,8 @@ impl FromRequest for Guard {
 
 /// `GET {path}/{key}` → PNG（`Cache-Control: no-store`）。
 pub async fn captcha_image(path: web::Path<String>, guard: Guard) -> impl Responder {
-    match guard.image(&path.into_inner()) {
+    let key = path.into_inner();
+    match run_blocking(move || guard.image(&key)).await {
         Ok(Some(img)) => HttpResponse::Ok()
             .content_type(img.content_type)
             .insert_header((header::CACHE_CONTROL, img.cache_control))
@@ -64,17 +80,22 @@ pub struct VerifyRequest {
 
 /// `POST {path}/verify` → `{"pass": true|false}`。
 ///
-/// 限流身份按请求派生（[`client_identity`]：`X-Forwarded-For` 第一段 → 对端 IP → `"unknown"`）。
+/// 限流身份按请求派生（[`client_identity`]：对端 IP → `"unknown"`）。
+/// `X-Forwarded-For` 默认**不**采信（可伪造），仅在 [`Guard::with_trust_forwarded_for`] 显式
+/// 开启后才作为身份参与分桶。
 pub async fn captcha_verify(
     req: HttpRequest,
     body: web::Json<VerifyRequest>,
     guard: Guard,
 ) -> impl Responder {
-    let identity = client_identity(
-        req.headers().get("x-forwarded-for").and_then(|value| value.to_str().ok()),
-        req.peer_addr().map(|addr| addr.ip()),
-    );
-    match guard.verify_as(&body.key, body.answer.clone(), &identity) {
+    let xff = if guard.trust_forwarded_for() {
+        req.headers().get("x-forwarded-for").and_then(|value| value.to_str().ok())
+    } else {
+        None
+    };
+    let identity = client_identity(xff, req.peer_addr().map(|addr| addr.ip()));
+    let body = body.into_inner();
+    match run_blocking(move || guard.verify_as(&body.key, body.answer, &identity)).await {
         Ok(pass) => HttpResponse::Ok().json(serde_json::json!({ "pass": pass })),
         Err(_) => HttpResponse::InternalServerError().finish(),
     }
@@ -85,8 +106,8 @@ pub async fn captcha_new(
     query: web::Query<std::collections::HashMap<String, String>>,
     guard: Guard,
 ) -> impl Responder {
-    let kind = query.get("type").map(String::as_str);
-    match guard.create_json(kind) {
+    let kind = query.get("type").cloned();
+    match run_blocking(move || guard.create_json(kind.as_deref())).await {
         Ok(value) => HttpResponse::Ok().json(value),
         Err(_) => HttpResponse::InternalServerError().finish(),
     }

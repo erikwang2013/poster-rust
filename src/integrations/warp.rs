@@ -12,6 +12,7 @@
 //! # }
 //! ```
 
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 
@@ -21,18 +22,24 @@ use warp::http::{StatusCode, header};
 use crate::captcha::Answer;
 use crate::guard::{Guard, client_identity};
 
+use super::MAX_VERIFY_BODY;
+
 /// 把 `Guard` 注入 filter 链：`warp::path("api").and(guard_filter(g)).and_then(handler)`
 pub fn guard_filter(guard: Guard) -> impl Filter<Extract = (Guard,), Error = Infallible> + Clone {
     warp::any().map(move || guard.clone())
 }
 
-/// PNG 出图回复（含 `Cache-Control: no-store`）。
+/// PNG 出图回复（`Content-Type: image/png` + `Cache-Control: no-store`，对齐其余框架）。
 fn image_reply(guard: &Guard, key: &str) -> Box<dyn warp::Reply + Send> {
     match guard.image(key) {
         Ok(Some(img)) => Box::new(warp::reply::with_header(
-            warp::reply::with_status(img.bytes, StatusCode::OK),
+            warp::reply::with_header(
+                warp::reply::with_status(img.bytes, StatusCode::OK),
+                header::CONTENT_TYPE,
+                img.content_type,
+            ),
             header::CACHE_CONTROL,
-            "no-store",
+            img.cache_control,
         )),
         Ok(None) => Box::new(StatusCode::NOT_FOUND),
         Err(_) => Box::new(StatusCode::INTERNAL_SERVER_ERROR),
@@ -48,15 +55,19 @@ pub struct VerifyRequest {
 
 /// `POST {path}/verify` 的回复（`{"pass": true|false}`）。
 ///
-/// 限流身份按请求派生（[`client_identity`]：`X-Forwarded-For` 第一段 → 对端 IP → `"unknown"`）。
-/// 请求体 JSON 解析失败由 `warp::body::json()` 拒绝 → 400。
+/// 限流身份按请求派生（[`client_identity`]：对端 IP → `"unknown"`）。
+/// `X-Forwarded-For` 默认**不**采信（可伪造），仅在 [`Guard::with_trust_forwarded_for`] 显式
+/// 开启后才作为身份参与分桶。
+/// 请求体 JSON 解析失败由 `warp::body::json()` 拒绝 → 400；超过
+/// [`MAX_VERIFY_BODY`](super::MAX_VERIFY_BODY) 由 `content_length_limit` 拒绝 → 413。
 fn verify_reply(
     guard: &Guard,
     remote: Option<SocketAddr>,
     xff: Option<String>,
     body: VerifyRequest,
 ) -> Box<dyn warp::Reply + Send> {
-    let identity = client_identity(xff.as_deref(), remote.map(|addr| addr.ip()));
+    let xff = if guard.trust_forwarded_for() { xff.as_deref() } else { None };
+    let identity = client_identity(xff, remote.map(|addr| addr.ip()));
     match guard.verify_as(&body.key, body.answer, &identity) {
         Ok(pass) => Box::new(warp::reply::json(&serde_json::json!({ "pass": pass }))),
         Err(_) => Box::new(StatusCode::INTERNAL_SERVER_ERROR),
@@ -75,17 +86,23 @@ pub fn routes_at(
     guard: Guard,
     prefix: &'static str,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+    // 生成失败回 500（对齐其余框架；旧实现把错误混在 200 的 `{"error":"internal"}` 里）。
     let new_route = {
         let guard = guard.clone();
         warp::path(prefix)
             .and(warp::path("new"))
             .and(warp::path::end())
+            .and(warp::get())
+            .and(warp::query::<HashMap<String, String>>())
             .and(guard_filter(guard))
-            .map(|g: Guard| {
-                warp::reply::json(
-                    &g.create_json(None)
-                        .unwrap_or_else(|_| serde_json::json!({ "error": "internal" })),
-                )
+            .and_then(|query: HashMap<String, String>, g: Guard| async move {
+                let kind = query.get("type").cloned();
+                let created = super::run_blocking(move || g.create_json(kind.as_deref())).await;
+                let reply: Box<dyn warp::Reply + Send> = match created {
+                    Ok(value) => Box::new(warp::reply::json(&value)),
+                    Err(_) => Box::new(StatusCode::INTERNAL_SERVER_ERROR),
+                };
+                Ok::<_, warp::Rejection>(reply)
             })
     };
     // 出图路由没有方法过滤（`POST /captcha/verify` 也会被 `path::param` 吃掉），必须排在它前面。
@@ -95,13 +112,21 @@ pub fn routes_at(
             .and(warp::path("verify"))
             .and(warp::path::end())
             .and(warp::post())
+            // warp 的 `body::json()` 默认无大小上限：先按 Content-Length 卡 413。
+            .and(warp::body::content_length_limit(MAX_VERIFY_BODY as u64))
             .and(warp::addr::remote())
             .and(warp::header::optional::<String>("x-forwarded-for"))
             .and(warp::body::json())
             .and(guard_filter(guard))
-            .map(
-                |remote: Option<SocketAddr>, xff: Option<String>, body: VerifyRequest, g: Guard| {
-                    verify_reply(&g, remote, xff, body)
+            .and_then(
+                |remote: Option<SocketAddr>, xff: Option<String>, body: VerifyRequest, g: Guard| async move {
+                    // `verify_reply` 本身不会失败：包成 `Ok` 只是为了复用 `run_blocking` 的 JoinError 兜底。
+                    let reply = super::run_blocking(move || Ok(verify_reply(&g, remote, xff, body))).await;
+                    let reply: Box<dyn warp::Reply + Send> = match reply {
+                        Ok(reply) => reply,
+                        Err(_) => Box::new(StatusCode::INTERNAL_SERVER_ERROR),
+                    };
+                    Ok::<_, warp::Rejection>(reply)
                 },
             )
     };
@@ -112,6 +137,13 @@ pub fn routes_at(
         .and(warp::path::end())
         .and(warp::get())
         .and(guard_filter(guard))
-        .map(|key: String, g: Guard| image_reply(&g, &key));
+        .and_then(|key: String, g: Guard| async move {
+            let reply = super::run_blocking(move || Ok(image_reply(&g, &key))).await;
+            let reply: Box<dyn warp::Reply + Send> = match reply {
+                Ok(reply) => reply,
+                Err(_) => Box::new(StatusCode::INTERNAL_SERVER_ERROR),
+            };
+            Ok::<_, warp::Rejection>(reply)
+        });
     new_route.or(verify_route).or(image_route)
 }

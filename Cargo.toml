@@ -3,7 +3,7 @@ name = "poster-rust"
 version = "1.1.2"
 edition = "2024"
 rust-version = "1.85"
-description = "Rust captcha (click/rotate/slider) and poster generation — framework-agnostic core with axum and actix-web integrations."
+description = "Rust captcha (click/rotate/slider) and poster generation — framework-agnostic core with axum / actix-web / rocket / poem / salvo / warp / bee-rust / e-cat integrations."
 license = "MIT"
 authors = ["erik <erik@erik.xyz>"]
 repository = "https://github.com/erikwang2013/poster-rust"
@@ -19,12 +19,12 @@ path = "src/lib.rs"
 
 [features]
 default = []
-axum = ["dep:axum"]
+axum = ["dep:axum", "dep:tokio"]
 actix = ["dep:actix-web"]
-rocket = ["dep:rocket"]
-poem = ["dep:poem"]
-salvo = ["dep:salvo"]
-warp = ["dep:warp"]
+rocket = ["dep:rocket", "dep:tokio"]
+poem = ["dep:poem", "dep:tokio"]
+salvo = ["dep:salvo", "dep:tokio"]
+warp = ["dep:warp", "dep:tokio"]
 bee-rust = ["dep:bee_router", "axum"]
 ecat = ["axum"]
 redis = ["dep:redis"]
@@ -48,6 +48,9 @@ poem = { version = "3.1.12", optional = true, default-features = false, features
 salvo = { version = "1.0.1", optional = true, default-features = false }
 warp = { version = "0.4.3", optional = true, default-features = false }
 bee_router = { version = "1.2.3", optional = true, default-features = false }
+# 各框架 handler 里把 CPU / 存储 IO 重活丢进阻塞线程池（`tokio::task::spawn_blocking`）。
+# 已在依赖树中（框架本身就跑在 tokio 上），只补 `rt` 这个 feature。
+tokio = { version = "1", features = ["rt"], optional = true }
 
 [package.metadata.docs.rs]
 all-features = true
@@ -78,6 +81,10 @@ required-features = ["actix"]
 [[test]]
 name = "integrations_axum"
 required-features = ["axum"]
+
+[[test]]
+name = "integrations_actix"
+required-features = ["actix"]
 
 [[test]]
 name = "integrations_warp"
