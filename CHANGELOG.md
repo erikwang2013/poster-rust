@@ -2,7 +2,7 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [2.0.0] - 2026-10-11
 
 ### 安全
 - 限流记录与验证码载荷彻底隔离：校验入口强校验 key 形态（32 位 hex），载荷键加 `captcha:` 命名空间——
@@ -122,6 +122,7 @@
   默认中文字体阿里巴巴普惠体。
 - 中英双语文档 + 架构 / 功能设计图。
 
+[2.0.0]: https://github.com/erikwang2013/poster-rust/releases/tag/v2.0.0
 [1.1.2]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.1.2
 [1.1.1]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.1.1
 [1.1.0]: https://github.com/erikwang2013/poster-rust/releases/tag/v1.1.0
