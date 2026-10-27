@@ -78,15 +78,7 @@
   <rect x="84" y="52" width="132" height="152" rx="28" fill="none" stroke="#2D3436" stroke-width="3.5"/>
 
   
-  <g>
-    <ellipse cx="110" cy="146" rx="11" ry="7" fill="#FFB4B4" opacity="0.75"/>
-    <ellipse cx="190" cy="146" rx="11" ry="7" fill="#FFB4B4" opacity="0.75"/>
-    <circle cx="126" cy="128" r="10" fill="#2D3436"/>
-    <circle cx="174" cy="128" r="10" fill="#2D3436"/>
-    <circle cx="130" cy="124" r="3.2" fill="#FFFFFF"/>
-    <circle cx="178" cy="124" r="3.2" fill="#FFFFFF"/>
-    <path d="M139 150Q150 161 161 150" fill="none" stroke="#2D3436" stroke-width="3.2" stroke-linecap="round"/>
-  </g>
+  
 
   
   <rect x="114" y="172" width="72" height="8" rx="4" fill="#FFE3E3"/>
@@ -97,4 +89,4 @@
     <path d="M0-9 2.6-2.6 9 0 2.6 2.6 0 9-2.6 2.6-9 0-2.6-2.6Z" transform="translate(262,84) scale(0.85)"/>
     <path d="M0-9 2.6-2.6 9 0 2.6 2.6 0 9-2.6 2.6-9 0-2.6-2.6Z" transform="translate(34,120) scale(0.7)"/>
     <path d="M0-9 2.6-2.6 9 0 2.6 2.6 0 9-2.6 2.6-9 0-2.6-2.6Z" transform="translate(238,40) scale(0.5)"/>
-  </g></g><g class="ex-face"><ellipse cx="150" cy="141" rx="37" ry="30" fill="#FFFDF8"/><path d="M 116.5,130.8 Q 126,116.5 135.5,130.8" fill="none" stroke="#2D3436" stroke-width="2" stroke-linecap="round"/><path class="ex-anim-pulse" style="animation-delay:0s" d="M 174,131.99 C 163.29,123.8 167.91,116.24 174,122.96 C 180.09,116.24 184.71,123.8 174,131.99 Z" fill="#FF7AA2"/><ellipse cx="150" cy="150" rx="4.14" ry="3.96" fill="none" stroke="#2D3436" stroke-width="1.7"/><ellipse class="ex-anim-pulse" cx="118.5" cy="141.5" rx="7.8" ry="4.2" fill="#FF8FB3" opacity="0.7"/><ellipse class="ex-anim-pulse" cx="181.5" cy="141.5" rx="7.8" ry="4.2" fill="#FF8FB3" opacity="0.7"/><path class="ex-anim-heart" style="animation-delay:0.0s" d="M 114.48,99.58 C 107.34,94.12 110.42,89.08 114.48,93.56 C 118.54,89.08 121.62,94.12 114.48,99.58 Z" fill="#FF7AA2"/><path class="ex-anim-heart" style="animation-delay:0.7s" d="M 188.48,91.61 C 182.87,87.32 185.29,83.36 188.48,86.88 C 191.67,83.36 194.09,87.32 188.48,91.61 Z" fill="#FF7AA2"/><path class="ex-anim-heart" style="animation-delay:1.3s" d="M 176.64,113.16 C 172.76,110.2 174.44,107.46 176.64,109.9 C 178.84,107.46 180.52,110.2 176.64,113.16 Z" fill="#FF7AA2"/></g></g></svg>
+  </g></g><g class="ex-face"><path d="M 116.5,130.8 Q 126,116.5 135.5,130.8" fill="none" stroke="#2D3436" stroke-width="2" stroke-linecap="round"/><path class="ex-anim-pulse" style="animation-delay:0s" d="M 174,131.99 C 163.29,123.8 167.91,116.24 174,122.96 C 180.09,116.24 184.71,123.8 174,131.99 Z" fill="#FF7AA2"/><ellipse cx="150" cy="150" rx="4.14" ry="3.96" fill="none" stroke="#2D3436" stroke-width="1.7"/><ellipse class="ex-anim-pulse" cx="118.5" cy="141.5" rx="7.8" ry="4.2" fill="#FF8FB3" opacity="0.7"/><ellipse class="ex-anim-pulse" cx="181.5" cy="141.5" rx="7.8" ry="4.2" fill="#FF8FB3" opacity="0.7"/><path class="ex-anim-heart" style="animation-delay:0.0s" d="M 114.48,99.58 C 107.34,94.12 110.42,89.08 114.48,93.56 C 118.54,89.08 121.62,94.12 114.48,99.58 Z" fill="#FF7AA2"/><path class="ex-anim-heart" style="animation-delay:0.7s" d="M 188.48,91.61 C 182.87,87.32 185.29,83.36 188.48,86.88 C 191.67,83.36 194.09,87.32 188.48,91.61 Z" fill="#FF7AA2"/><path class="ex-anim-heart" style="animation-delay:1.3s" d="M 176.64,113.16 C 172.76,110.2 174.44,107.46 176.64,109.9 C 178.84,107.46 180.52,110.2 176.64,113.16 Z" fill="#FF7AA2"/></g></g></svg>
